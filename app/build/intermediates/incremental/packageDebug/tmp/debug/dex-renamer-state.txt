@@ -1,0 +1,10 @@
+#Fri Jul 21 21:30:16 CST 2023
+base.2=E\:\\studyfxz\\ArtAgent\\app\\build\\intermediates\\dex\\debug\\mergeProjectDexDebug\\5\\classes.dex
+path.2=5/classes.dex
+base.1=E\:\\studyfxz\\ArtAgent\\app\\build\\intermediates\\dex\\debug\\mergeProjectDexDebug\\0\\classes.dex
+path.1=0/classes.dex
+base.0=E\:\\studyfxz\\ArtAgent\\app\\build\\intermediates\\dex\\debug\\mergeExtDexDebug\\classes.dex
+renamed.2=classes3.dex
+renamed.1=classes2.dex
+renamed.0=classes.dex
+path.0=classes.dex
