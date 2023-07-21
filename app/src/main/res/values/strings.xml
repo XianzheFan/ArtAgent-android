@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">ArtAgent</string>
+    <string name="channel_name">ArtAgent</string>
+    <string name="channel_description">ArtAgent accessibility</string>
+</resources>
