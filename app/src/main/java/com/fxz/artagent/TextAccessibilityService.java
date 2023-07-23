@@ -13,6 +13,15 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class TextAccessibilityService extends AccessibilityService {
+    private static List<String> latestTexts = new ArrayList<>();
+    public static List<String> getLatestTexts() {
+        return latestTexts;
+    }
+
+//    private String latestText = "";
+//    public String getLatestText() {
+//        return latestText;
+//    }  // 如果只返回点击的部分
 
     public List<String> getAllTexts(AccessibilityNodeInfo node) {
         // 所有ui部件都会展开，甚至不包括出现在用户眼前的文字
@@ -50,13 +59,12 @@ public class TextAccessibilityService extends AccessibilityService {
         AccessibilityNodeInfo nodeInfo = event.getSource();
         if (nodeInfo != null) {
             try {
-                List<String> texts = getAllTexts(nodeInfo);
+                latestTexts = getAllTexts(nodeInfo);
                 if (textCallback != null) {
-                    textCallback.onTextReceived(texts);
-//                    for (String every_text : texts) {  // 分行发送
-//                        Log.e("AccessibilityService", "Every: " + every_text);
-//                    }
+                    textCallback.onTextReceived(latestTexts);
                 }
+
+//                latestText = (nodeInfo.getText() != null) ? nodeInfo.getText().toString() : "";  // 只返回点击的部分
 
                 CharSequence text = nodeInfo.getText();
                 CharSequence description = nodeInfo.getContentDescription();
@@ -71,7 +79,7 @@ public class TextAccessibilityService extends AccessibilityService {
 //
 //                List<String> texts = getAllTexts(nodeInfo);
 //                Log.e("AccessibilityService", "All Texts: " + texts);
-
+//
 //                for (String every_text : texts) {  // 分行发送
 //                    Log.e("AccessibilityService", "Every: " + every_text);
 //                }

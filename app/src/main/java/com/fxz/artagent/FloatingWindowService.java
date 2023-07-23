@@ -17,15 +17,12 @@ import android.view.WindowManager;
 import android.widget.Toast;
 import android.widget.ImageView;
 
-import java.util.ArrayList;
 import java.util.List;
 
 public class FloatingWindowService extends Service implements TextAccessibilityService.TextCallback {
     private WindowManager windowManager;
     private ImageView floatingIcon;
     public static final String CHANNEL_ID = "FloatingWindowServiceChannel";
-    private List<String> cachedText = new ArrayList<>(); // 在类开始的地方添加
-    private boolean isButtonClicked = false; // 新增标志位，用于跟踪悬浮窗是否被点击
 
     @Override
     public IBinder onBind(Intent intent) {
@@ -86,12 +83,11 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
                         if (lastAction == MotionEvent.ACTION_DOWN ||
                                 Math.abs(motionEvent.getRawX() - initialTouchX) < 10 &&
                                         Math.abs(motionEvent.getRawY() - initialTouchY) < 10) {
-                            // 与原始点击位置相比，只有当没有移动或移动很小的距离时，才认为是点击
-                            // 如果文本特别长，会有延迟
-                            isButtonClicked = true;
+                            // 在点击事件中，我们调用 getLatestTexts()
+                            getLatestTexts();
                         }
                         lastAction = motionEvent.getAction();
-                        return lastAction != MotionEvent.ACTION_MOVE; // 如果移动了，则不认为是点击
+                        return lastAction != MotionEvent.ACTION_MOVE;
                     default:
                         return false;
                 }
@@ -112,17 +108,14 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
         if (floatingIcon != null) windowManager.removeView(floatingIcon);
     }
 
+    private void getLatestTexts() {
+        List<String> latestTexts = TextAccessibilityService.getLatestTexts();
+        Log.e("AccessibilityService", "AllText: " + latestTexts);
+        new Handler(Looper.getMainLooper()).postDelayed(() ->
+                Toast.makeText(FloatingWindowService.this, "您生成的图片将保存至相册", Toast.LENGTH_SHORT).show(), 0);
+    }
+
     @Override
     public void onTextReceived(List<String> allText) {
-        if (isButtonClicked) { // 只有当悬浮窗被点击后，才返回无障碍功能获取的所有屏幕文本
-            Log.e("AccessibilityService", "All Texts: " + allText);
-            for (String every_text : allText) {  // 分行发送
-                Log.e("AccessibilityService", "Every: " + every_text);
-            }
-            isButtonClicked = false; // 返回文本后重置标志位
-            // 在主线程中延迟显示 Toast
-            new Handler(Looper.getMainLooper()).postDelayed(() ->
-                    Toast.makeText(FloatingWindowService.this, "您生成的图片将保存至相册", Toast.LENGTH_SHORT).show(), 500);
-        }
-    }  // 有时候会先返回 [100%, 8:26] 然后再返回文本，很慢
+    }
 }
