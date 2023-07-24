@@ -11,20 +11,39 @@ android {
         targetSdk 32
         versionCode 1
         versionName "1.0"
+        signingConfig signingConfigs.debug
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    signingConfigs {
+        release {
+            storeFile file("../release.keystore")
+            storePassword "artagent"
+            keyAlias "alias_name"
+            keyPassword "artagent"
+        }
+        debug {
+            storeFile file("../release.keystore")
+            storePassword "artagent"
+            keyAlias "alias_name"
+            keyPassword "artagent"
+        }
+    }
+
     buildTypes {
         release {
-            minifyEnabled false
+            minifyEnabled true
+//            signingConfig signingConfigs.release
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
+
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_1_8
         targetCompatibility JavaVersion.VERSION_1_8
     }
+
 }
 
 dependencies {
