@@ -17,7 +17,7 @@ import java.util.Map;
 public class MusicRecognitionService {
     private static final String WEBSING_URL = "https://webqbh.xfyun.cn/v1/service/v1/qbh";
     private static final String APPID = "449dd136";
-    private static final String API_KEY = "686388524c9a0470fb5283d09804e88f";
+    private static final String API_KEY = "df6860efee87ef69614e0e19459ba472";
     private static final String ENGINE_TYPE = "afs";
     private static final String AUE = "aac";
 

@@ -73,6 +73,8 @@ public class MainActivity extends AppCompatActivity {
     TextView faceView;
     private Button musicButton;
     private TextView musicView;
+    Button mapButton;
+    TextView mapView;
     private MusicRecognitionService musicRecognitionService;
     private boolean isMusicRecording = false;
     private OkHttpClient buildHttpClient() {
@@ -266,12 +268,7 @@ public class MainActivity extends AppCompatActivity {
 
         musicButton = findViewById(R.id.music_button);
         musicView = findViewById(R.id.music_view);
-        musicRecognitionService = new MusicRecognitionService(MainActivity.this, new MusicRecognitionService.RecognitionCallback() {
-            @Override
-            public void onRecognitionResult(String result) {
-                musicView.setText(result);
-            }
-        });
+        musicRecognitionService = new MusicRecognitionService(MainActivity.this, result -> musicView.setText(result));
         musicButton.setOnClickListener(v -> {
             if (!isMusicRecording) {
                 // 开始录音
@@ -307,40 +304,40 @@ public class MainActivity extends AppCompatActivity {
         });
 
 
-        AMapLocationClient.updatePrivacyShow(getApplicationContext(), true, true);
-        AMapLocationClient.updatePrivacyAgree(getApplicationContext(), true);
-        try {
-            mLocationClient = new AMapLocationClient(getApplicationContext());
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-        AMapLocationClientOption mLocationOption = new AMapLocationClientOption();
-        mLocationOption.setLocationMode(AMapLocationClientOption.AMapLocationMode.Hight_Accuracy);
-        mLocationOption.setOnceLocation(true);
-        mLocationOption.setOnceLocationLatest(true);
-        mLocationOption.setNeedAddress(true);
-        mLocationClient.setLocationOption(mLocationOption);
+        mapButton = findViewById(R.id.map_button);
+        mapView = findViewById(R.id.map_view);
+        mapButton.setOnClickListener(view -> {
+            AMapLocationClient.updatePrivacyShow(getApplicationContext(), true, true);
+            AMapLocationClient.updatePrivacyAgree(getApplicationContext(), true);
+            try {
+                mLocationClient = new AMapLocationClient(getApplicationContext());
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+            AMapLocationClientOption mLocationOption = new AMapLocationClientOption();
+            mLocationOption.setLocationMode(AMapLocationClientOption.AMapLocationMode.Hight_Accuracy);
+            mLocationOption.setOnceLocation(true);
+            mLocationOption.setOnceLocationLatest(true);
+            mLocationOption.setNeedAddress(true);
+            mLocationClient.setLocationOption(mLocationOption);
 
-        if (mLocationClient != null) {
-            //设置定位回调监听
-            //启动定位
-//异步获取定位结果
-            mLocationClient.setLocationListener(amapLocation -> {
-                if (amapLocation != null) {
-                    if (amapLocation.getErrorCode() == 0) {
-                        String address = amapLocation.getAddress();  //获取详细地址信息
-                        Log.d("AmapInfo", "address: " + address + "LocationType: "
-                                + amapLocation.getLocationType() + "getLatitude: " + amapLocation.getLatitude());
+            if (mLocationClient != null) {
+                mLocationClient.setLocationListener(amapLocation -> {
+                    if (amapLocation != null) {
+                        if (amapLocation.getErrorCode() == 0) {
+                            String address = amapLocation.getAddress();  //获取详细地址信息
+                            mapView.setText(address); // 在地图视图上设置获取到的地址
+                        }
+                    } else {
+                        Log.e("AmapError", "location Error, ErrCode:" + amapLocation.getErrorCode() + ", errInfo:"
+                                + amapLocation.getErrorInfo());
                     }
-                } else {
-                    Log.e("AmapError", "location Error, ErrCode:" + amapLocation.getErrorCode() + ", errInfo:"
-                            + amapLocation.getErrorInfo());
-                }
-            });
-            mLocationClient.startLocation();
-        } else {
-            Log.e("Amap null", "onCreate: Amap null");
-        }
+                });
+                mLocationClient.startLocation();
+            } else {
+                Log.e("Amap null", "onCreate: Amap null");
+            }
+        });
 
 
         button.setOnClickListener(v -> {
