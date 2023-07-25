@@ -20,10 +20,11 @@ import android.media.AudioRecord;
 import android.media.MediaRecorder;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Message;
 import android.os.Process;
 import android.provider.MediaStore;
 import android.provider.Settings;
-import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.TextView;
@@ -46,6 +47,7 @@ import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 
 import java.io.IOException;
+import java.security.SignatureException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
@@ -71,12 +73,11 @@ public class MainActivity extends AppCompatActivity {
     public static final String CHANNEL_ID = "FloatingWindowServiceChannel";
     Button faceButton;
     TextView faceView;
-    private Button musicButton;
-    private TextView musicView;
+    Button music_button;
+    TextView music_view;
     Button mapButton;
     TextView mapView;
-    private MusicRecognitionService musicRecognitionService;
-    private boolean isMusicRecording = false;
+
     private OkHttpClient buildHttpClient() {
         return new OkHttpClient.Builder()
                 .retryOnConnectionFailure(true)
@@ -252,6 +253,16 @@ public class MainActivity extends AppCompatActivity {
     }
 
 
+    private Handler handler = new Handler(new Handler.Callback() {
+        @Override
+        public boolean handleMessage(Message msg) {
+            // Update the UI with the result
+            String result = (String) msg.obj;
+            music_view.setText(result);
+            return true;
+        }
+    });
+
     @RequiresApi(api = Build.VERSION_CODES.Q)
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -260,35 +271,34 @@ public class MainActivity extends AppCompatActivity {
         requestPermissions();
         requestWriteSettingsPermission();
 
-        final EditText editText = findViewById(R.id.edit_text);
-        final TextView textView = findViewById(R.id.text_view);
-        Button button = findViewById(R.id.button);
-        faceButton = findViewById(R.id.face_button);
-        faceView = findViewById(R.id.face_view);
 
-        musicButton = findViewById(R.id.music_button);
-        musicView = findViewById(R.id.music_view);
-        musicRecognitionService = new MusicRecognitionService(MainActivity.this, result -> musicView.setText(result));
-        musicButton.setOnClickListener(v -> {
-            if (!isMusicRecording) {
-                // 开始录音
+        music_button = findViewById(R.id.music_button);
+        music_view = findViewById(R.id.music_view);
+        final RecordAndRecognize recordAndRecognize = new RecordAndRecognize(this, handler, RequestMetaData.getHostUrl(), RequestMetaData.getJsonStringRequestData());
+        Thread recordThread = new Thread(recordAndRecognize);
+        music_button.setOnClickListener(v -> {
+            if (!recordThread.isAlive()) {
+                recordThread.start();
+                music_button.setText("Stop Recording");
+            } else {
+                recordAndRecognize.stopRecording();
+                music_button.setText("Start Recording");
+                // Retrieve result and update UI
+                String result = null;
                 try {
-                    musicRecognitionService.startRecording();
-                    musicButton.setText("停止录音，开始识别");
-                    isMusicRecording = true;
-                } catch (IOException e) {
+                    result = recordAndRecognize.recognizeMusic();
+                } catch (IOException | SignatureException e) {
                     e.printStackTrace();
                 }
-            } else {
-                // 停止录音并识别音乐
-                musicRecognitionService.stopRecording();
-                musicButton.setText("听歌识曲");
-                isMusicRecording = false;
+                music_view.setText(result);
             }
         });
 
 
+        faceButton = findViewById(R.id.face_button);
+        faceView = findViewById(R.id.face_view);
         faceButton.setOnClickListener(view -> dispatchTakePictureIntent());  // 跳转至相机界面
+
 
         Button record_button = findViewById(R.id.record_button);
         record_button.setText("Start Record");
@@ -340,6 +350,9 @@ public class MainActivity extends AppCompatActivity {
         });
 
 
+        final EditText editText = findViewById(R.id.edit_text);
+        final TextView textView = findViewById(R.id.text_view);
+        Button button = findViewById(R.id.button);
         button.setOnClickListener(v -> {
             String input = editText.getText().toString();
 
