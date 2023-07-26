@@ -25,13 +25,16 @@ import android.os.Message;
 import android.os.Process;
 import android.provider.MediaStore;
 import android.provider.Settings;
+import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.ImageView;
 import android.widget.TextView;
 import android.net.Uri;
 import android.content.Intent;
 import android.util.Log;
 import android.widget.Toast;
+import android.content.SharedPreferences;
 
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
@@ -43,8 +46,11 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import com.bumptech.glide.Glide;
 import com.google.gson.Gson;
+import java.lang.reflect.Type;
 import com.google.gson.JsonObject;
+import com.google.gson.reflect.TypeToken;
 
 import java.io.IOException;
 import java.security.SignatureException;
@@ -52,6 +58,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
@@ -72,11 +79,11 @@ public class MainActivity extends AppCompatActivity {
             = MediaType.get("application/json; charset=utf-8");
     public static final String CHANNEL_ID = "FloatingWindowServiceChannel";
     Button faceButton;
-    TextView faceView;
+    EditText faceView;
     Button music_button;
-    TextView music_view;
+//    TextView music_view;
     Button mapButton;
-    TextView mapView;
+    EditText mapView;
 
     private OkHttpClient buildHttpClient() {
         return new OkHttpClient.Builder()
@@ -253,45 +260,40 @@ public class MainActivity extends AppCompatActivity {
     }
 
 
-    private Handler handler = new Handler(new Handler.Callback() {
-        @Override
-        public boolean handleMessage(Message msg) {
-            // Update the UI with the result
-            String result = (String) msg.obj;
-            music_view.setText(result);
-            return true;
-        }
-    });
-
     @RequiresApi(api = Build.VERSION_CODES.Q)
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+        EditText recordView = findViewById(R.id.record_view);
         requestPermissions();
         requestWriteSettingsPermission();
 
-
+//        music_button = findViewById(R.id.music_button);
+//        music_view = findViewById(R.id.music_view);
+//        final RecordAndRecognize recordAndRecognize = new RecordAndRecognize(this, handler, RequestMetaData.getHostUrl(), RequestMetaData.getJsonStringRequestData());
+//        Thread recordThread = new Thread(recordAndRecognize);
+//        music_button.setOnClickListener(v -> {
+//            if (!recordThread.isAlive()) {
+//                recordThread.start();
+//                music_button.setText("Stop Recording");
+//            } else {
+//                recordAndRecognize.stopRecording();
+//                music_button.setText("Start Recording");
+//                // Retrieve result and update UI
+//                String result = null;
+//                try {
+//                    result = recordAndRecognize.recognizeMusic();
+//                } catch (IOException | SignatureException e) {
+//                    e.printStackTrace();
+//                }
+//                music_view.setText(result);
+//            }
+//        });
         music_button = findViewById(R.id.music_button);
-        music_view = findViewById(R.id.music_view);
-        final RecordAndRecognize recordAndRecognize = new RecordAndRecognize(this, handler, RequestMetaData.getHostUrl(), RequestMetaData.getJsonStringRequestData());
-        Thread recordThread = new Thread(recordAndRecognize);
         music_button.setOnClickListener(v -> {
-            if (!recordThread.isAlive()) {
-                recordThread.start();
-                music_button.setText("Stop Recording");
-            } else {
-                recordAndRecognize.stopRecording();
-                music_button.setText("Start Recording");
-                // Retrieve result and update UI
-                String result = null;
-                try {
-                    result = recordAndRecognize.recognizeMusic();
-                } catch (IOException | SignatureException e) {
-                    e.printStackTrace();
-                }
-                music_view.setText(result);
-            }
+            Intent intent = new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS);
+            startActivity(intent);
         });
 
 
@@ -325,6 +327,7 @@ public class MainActivity extends AppCompatActivity {
                 e.printStackTrace();
             }
             AMapLocationClientOption mLocationOption = new AMapLocationClientOption();
+            mLocationOption.setGeoLanguage(AMapLocationClientOption.GeoLanguage.EN);  // 设置为英文
             mLocationOption.setLocationMode(AMapLocationClientOption.AMapLocationMode.Hight_Accuracy);
             mLocationOption.setOnceLocation(true);
             mLocationOption.setOnceLocationLatest(true);
@@ -352,17 +355,30 @@ public class MainActivity extends AppCompatActivity {
 
         final EditText editText = findViewById(R.id.edit_text);
         final TextView textView = findViewById(R.id.text_view);
+        final EditText writeView = findViewById(R.id.write_view);
         Button button = findViewById(R.id.button);
         button.setOnClickListener(v -> {
             String input = editText.getText().toString();
+            String recordText = recordView.getText().toString();
+            String faceText = faceView.getText().toString();
+            String mapText = mapView.getText().toString();
+            String writeText = writeView.getText().toString();
+
+            //合并所有视图中的文本
+            String combinedText = "Given the context of user, which may contain irrelevant information, " +
+                    "analyze the MOST LIKELY PAINTING INTENTION of the user, and provide painting suggestions." +
+                    "【Content on the phone】:【" + writeText + "】【Location】:【" + mapText + "】【Action】:【】" +
+                    "【User command】:【" + recordText + "," + input + "】【Emotion】:【" + faceText +"】";
+            Log.e(TAG, "predict: " + combinedText);
 
             // 构建发送的数据
             JSONObject data = new JSONObject();
             try {
-                data.put("input", input);
+                data.put("input", combinedText);
                 data.put("chatbot", new JSONArray());
                 data.put("history", new JSONArray());
                 data.put("userID", 123456);
+                Log.e(TAG, "onCreate: data");
             } catch (JSONException e) {
                 e.printStackTrace();
             }
@@ -372,6 +388,7 @@ public class MainActivity extends AppCompatActivity {
             post("http://166.111.139.118:22231/gpt4_predict", data.toString(), new Callback() {
                 @Override
                 public void onFailure(@NonNull Call call, @NonNull IOException e) {
+                    Log.e(TAG, "onFailure: gpt4");
                     e.printStackTrace();
                 }
 
@@ -383,15 +400,117 @@ public class MainActivity extends AppCompatActivity {
                     // 将服务器的响应显示给用户
                     final String resStr = Objects.requireNonNull(response.body()).string();
 
+                    // 使用 Gson 解析 JSON 数据
+                    Gson gson = new Gson();
+                    Type type = new TypeToken<Map<String, Object>>(){}.getType();
+                    Map<String, Object> resMap = gson.fromJson(resStr, type);
+
+                    List<Map<String, String>> history = (List<Map<String, String>>) resMap.get("history");
+                    String assistantContent = "";
+                    for (Map<String, String> item : history) {
+                        if (item.get("role").equals("assistant")) {
+                            assistantContent = item.get("content");
+                        }
+                    }
+
+                    final String displayContent = assistantContent;
+                    Log.e(TAG, "onResponse: " + displayContent);
+
                     runOnUiThread(() -> {
-                        textView.setText(resStr); // 更新TextView的内容
+                        textView.setText(displayContent); // 更新TextView的内容
                     });
                 }
             });
         });
+
+
+        final Button drawButton = findViewById(R.id.draw_button);
+        final ImageView drawView = findViewById(R.id.draw_view);
+        drawButton.setOnClickListener(v -> {
+            String input = editText.getText().toString();
+            String recordText = recordView.getText().toString();
+            String faceText = faceView.getText().toString();
+            String mapText = mapView.getText().toString();
+            String textText = textView.getText().toString();
+            String writeText = writeView.getText().toString();
+
+
+            String combinedText = "Given the context of user, which may contain irrelevant information, " +
+                    "analyze the MOST LIKELY PAINTING INTENTION of the user, and provide painting suggestions." +
+                    "【Content on the phone】:【" + writeText + "】【Location】:【" + mapText + "】【Action】:【】" +
+                    "【User command】:【" + recordText + "," + input + "】【Emotion】:【" + faceText +"】";
+            Log.e(TAG, "draw: " + combinedText);
+
+            JSONObject data = new JSONObject();
+            try {
+                data.put("userID", 12345);
+                data.put("cnt", 0);
+                data.put("width", 768);
+                data.put("height", 768);
+
+                JSONArray chatbot = new JSONArray();
+                chatbot.put(combinedText);
+                chatbot.put(textText);
+                data.put("chatbot", chatbot);
+
+                JSONArray history = new JSONArray();
+                JSONObject historyItem1 = new JSONObject();
+                historyItem1.put("role", "user");
+                historyItem1.put("content", combinedText);
+                history.put(historyItem1);
+                JSONObject historyItem2 = new JSONObject();
+                historyItem2.put("role", "assistant");
+                historyItem2.put("content", textText);
+                history.put(historyItem2);
+                data.put("history", history);
+            } catch (JSONException e) {
+                e.printStackTrace();
+            }
+
+            post("http://166.111.139.118:22231/gpt4_sd_draw", data.toString(), new Callback() {
+                @Override
+                public void onFailure(@NonNull Call call, @NonNull IOException e) {
+                    Log.e(TAG, "onFailure: gpt4_sd_draw");
+                    e.printStackTrace();
+                }
+
+                @Override
+                public void onResponse(@NonNull Call call, @NonNull Response response) throws IOException {
+                    if (!response.isSuccessful())
+                        throw new IOException("Unexpected code " + response);
+
+                    // 解析服务器的响应
+                    final String resStr = Objects.requireNonNull(response.body()).string();
+
+                    // 使用 Gson 解析 JSON 数据
+                    Gson gson = new Gson();
+                    Type type = new TypeToken<Map<String, Object>>(){}.getType();
+                    Map<String, Object> resMap = gson.fromJson(resStr, type);
+
+                    String imageUrl = (String) resMap.get("image_url");
+
+                    // 使用Glide或者其他库从imageUrl加载图像，并显示在drawView中
+                    runOnUiThread(() -> {
+                        Glide.with(MainActivity.this).load(imageUrl).into(drawView);
+                    });
+                }
+            });
+        });
+
         promptForAccessibility();
         checkDrawOverlayPermission();
         createNotificationChannel();
+    }
+
+
+    // 发送POST请求的方法
+    void post(String url, String json, Callback callback) {
+        RequestBody body = RequestBody.create(json, JSON);
+        Request request = new Request.Builder()
+                .url(url)
+                .post(body)
+                .build();
+        client.newCall(request).enqueue(callback);
     }
 
 
@@ -440,7 +559,6 @@ public class MainActivity extends AppCompatActivity {
         Log.i(TAG, "Record init okay");
     }
 
-
     private void startRecordThread() {
         new Thread(() -> {
             startRecord = true;
@@ -470,7 +588,6 @@ public class MainActivity extends AppCompatActivity {
             record = null;
         }).start();
     }
-
 
     // 整个会话时长最多持续60s，或者超过10s未发送数据，服务端会主动断开连接
     void startAsrThread() {
@@ -628,8 +745,8 @@ public class MainActivity extends AppCompatActivity {
                                     try {
                                         decoder.decode(te);
                                         runOnUiThread(() -> {
-                                            TextView record_view = findViewById(R.id.record_view);
-                                            record_view.setText(decoder.toString());
+                                            TextView recordView = findViewById(R.id.record_view);
+                                            recordView.setText(decoder.toString());
                                             Log.e(TAG, resp.getMessage() + " " + resp.getData().getResult().getText());
                                             Button record_button = findViewById(R.id.record_button);
                                             record_button.setText("识别中，请稍等");
@@ -704,13 +821,19 @@ public class MainActivity extends AppCompatActivity {
     }
 
 
-    // 发送POST请求的方法
-    void post(String url, String json, Callback callback) {
-        RequestBody body = RequestBody.create(json, JSON);
-        Request request = new Request.Builder()
-                .url(url)
-                .post(body)
-                .build();
-        client.newCall(request).enqueue(callback);
+    private void loadTextsFromPreferences() {
+        SharedPreferences prefs = getSharedPreferences(FloatingWindowService.PREFERENCES_NAME, MODE_PRIVATE);
+        String savedTexts = prefs.getString(FloatingWindowService.PREFERENCES_KEY, "");
+
+        // 假设write_view是一个EditText或者TextView，我们将保存的文本设置到它上面
+        EditText writeView = findViewById(R.id.write_view);
+        writeView.setText(savedTexts);
+    }
+
+    // 在onResume中加载保存在SharedPreferences中的文本
+    @Override
+    protected void onResume() {
+        super.onResume();
+        loadTextsFromPreferences();
     }
 }

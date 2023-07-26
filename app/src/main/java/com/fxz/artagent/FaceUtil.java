@@ -35,7 +35,8 @@ public class FaceUtil {
         builder.addFormDataPart("api_key", API_KEY);
         builder.addFormDataPart("api_secret", API_Secret);
         builder.addFormDataPart("image_file", file.getName(), body);
-        builder.addFormDataPart("return_attributes", "gender,age,emotion");  // 逗号后面不能有空格
+//        builder.addFormDataPart("return_attributes", "gender,age,emotion");  // 逗号后面不能有空格
+        builder.addFormDataPart("return_attributes", "emotion");  // 逗号后面不能有空格
         return builder.build();
     }
 }

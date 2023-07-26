@@ -64,12 +64,13 @@ public class PhotoUploader extends AsyncTask<Void, Void, String> {
             JSONObject jsonResponse = new JSONObject(response);
             JSONArray faces = jsonResponse.getJSONArray("faces");
             JSONObject attributes = faces.getJSONObject(0).getJSONObject("attributes");
-            String gender = attributes.getJSONObject("gender").getString("value");
-            String age = attributes.getJSONObject("age").getString("value");
+//            String gender = attributes.getJSONObject("gender").getString("value");
+//            String age = attributes.getJSONObject("age").getString("value");
             JSONObject emotionObject = attributes.getJSONObject("emotion");
             String emotion = getDominantEmotion(emotionObject);
 
-            return "emotion : " + emotion + ", gender : " + gender + ", age: " + age;
+            return emotion;
+//            return "emotion : " + emotion + ", gender : " + gender + ", age: " + age;
         } catch (Exception e) {
             e.printStackTrace();
             return response;

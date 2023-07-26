@@ -9,6 +9,7 @@ import android.graphics.PixelFormat;
 import android.os.IBinder;
 import android.os.Looper;
 import android.os.Handler;
+import android.text.TextUtils;
 import android.util.Log;
 import android.view.Gravity;
 import android.view.MotionEvent;
@@ -16,6 +17,7 @@ import android.view.View;
 import android.view.WindowManager;
 import android.widget.Toast;
 import android.widget.ImageView;
+import android.content.SharedPreferences;
 
 import java.util.List;
 
@@ -23,6 +25,8 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
     private WindowManager windowManager;
     private ImageView floatingIcon;
     public static final String CHANNEL_ID = "FloatingWindowServiceChannel";
+    public static final String PREFERENCES_NAME = "SavedTexts";
+    public static final String PREFERENCES_KEY = "texts";
 
     @Override
     public IBinder onBind(Intent intent) {
@@ -111,8 +115,17 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
     private void getLatestTexts() {
         List<String> latestTexts = TextAccessibilityService.getLatestTexts();
         Log.e("AccessibilityService", "AllText: " + latestTexts);
+        saveTextsToPreferences(latestTexts);
         new Handler(Looper.getMainLooper()).postDelayed(() ->
                 Toast.makeText(FloatingWindowService.this, "您生成的图片将保存至相册", Toast.LENGTH_SHORT).show(), 0);
+    }
+
+    // 将最近获取的文本保存到 SharedPreferences
+    private void saveTextsToPreferences(List<String> texts) {
+        SharedPreferences prefs = getSharedPreferences(PREFERENCES_NAME, MODE_PRIVATE);
+        SharedPreferences.Editor editor = prefs.edit();
+        editor.putString(PREFERENCES_KEY, TextUtils.join("\n", texts));
+        editor.apply();
     }
 
     @Override
