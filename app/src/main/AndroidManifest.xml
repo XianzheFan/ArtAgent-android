@@ -71,16 +71,16 @@
         <meta-data android:name="com.amap.api.v2.apikey" android:value="9ffd6e2f337a291c36dc7e3850d46c9a">
         </meta-data>
         <service android:name="com.amap.api.location.APSService"></service>
-        <service android:name=".QQMusicAccessibilityService"
-            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.accessibilityservice.AccessibilityService" />
-            </intent-filter>
-            <meta-data
-                android:name="android.accessibilityservice"
-                android:resource="@xml/accessibility_service_config" />
-        </service>
+<!--        <service android:name=".QQMusicAccessibilityService"-->
+<!--            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"-->
+<!--            android:exported="true">-->
+<!--            <intent-filter>-->
+<!--                <action android:name="android.accessibilityservice.AccessibilityService" />-->
+<!--            </intent-filter>-->
+<!--            <meta-data-->
+<!--                android:name="android.accessibilityservice"-->
+<!--                android:resource="@xml/accessibility_service_config" />-->
+<!--        </service>-->
 
     </application>
 </manifest>
