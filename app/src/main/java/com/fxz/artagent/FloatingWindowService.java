@@ -1,32 +1,156 @@
 package com.fxz.artagent;
 
+import android.Manifest;
+import android.animation.Animator;
+import android.animation.AnimatorListenerAdapter;
 import android.annotation.SuppressLint;
+import android.app.AlertDialog;
 import android.app.Notification;
 import android.app.Service;
+import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
+import android.content.pm.PackageManager;
 import android.content.res.Resources;
+import android.graphics.BitmapFactory;
+import android.graphics.ImageFormat;
 import android.graphics.PixelFormat;
+import android.graphics.SurfaceTexture;
+import android.hardware.camera2.CameraAccessException;
+import android.hardware.camera2.CameraCaptureSession;
+import android.hardware.camera2.CameraCharacteristics;
+import android.hardware.camera2.CameraDevice;
+import android.hardware.camera2.CameraManager;
+import android.hardware.camera2.CaptureRequest;
+import android.media.AudioFormat;
+import android.media.AudioRecord;
+import android.media.Image;
+import android.media.ImageReader;
+import android.media.MediaRecorder;
+import android.os.Environment;
+import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
-import android.os.Handler;
+import android.os.Process;
 import android.text.TextUtils;
 import android.util.Log;
 import android.view.Gravity;
+import android.view.LayoutInflater;
 import android.view.MotionEvent;
+import android.view.Surface;
+import android.view.TextureView;
 import android.view.View;
+import android.view.ViewGroup;
+import android.view.ViewPropertyAnimator;
 import android.view.WindowManager;
-import android.widget.Toast;
+import android.view.inputmethod.InputMethodManager;
+import android.widget.EditText;
+import android.widget.FrameLayout;
 import android.widget.ImageView;
-import android.content.SharedPreferences;
+import android.widget.LinearLayout;
+import android.widget.RelativeLayout;
+import android.widget.TextView;
+import android.widget.Toast;
 
+import androidx.annotation.NonNull;
+import androidx.core.app.ActivityCompat;
+import androidx.localbroadcastmanager.content.LocalBroadcastManager;
+import androidx.recyclerview.widget.GridLayoutManager;
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
+
+import com.amap.api.location.AMapLocationClient;
+import com.amap.api.location.AMapLocationClientOption;
+import com.google.gson.Gson;
+import com.google.gson.JsonObject;
+import com.google.gson.reflect.TypeToken;
+
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
+
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.OutputStream;
+import java.lang.reflect.Type;
+import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Base64;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.TimeUnit;
+
+import okhttp3.Call;
+import okhttp3.Callback;
+import okhttp3.MediaType;
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.RequestBody;
+import okhttp3.Response;
+import okhttp3.WebSocket;
+import okhttp3.WebSocketListener;
+
 
 public class FloatingWindowService extends Service implements TextAccessibilityService.TextCallback {
     private WindowManager windowManager;
-    private ImageView floatingIcon;
+    private View layout;
     public static final String CHANNEL_ID = "FloatingWindowServiceChannel";
     public static final String PREFERENCES_NAME = "SavedTexts";
     public static final String PREFERENCES_KEY = "texts";
+    EditText etInput;
+    ImageView ivSend, ivPaint, ivMirco, ivDotView;
+    TextView tv1, tv2, tv3, tv4, tv5, tv6, tv7, tvTitle;
+    private int initialX, initialY;
+    private float initialTouchX, initialTouchY;
+    private boolean isOtherLayoutVisible = true;
+    private LinearLayout llCon1, llTool, ll0;
+    FrameLayout fl1, flFrame;
+    private long lastTime = 0;
+    View.OnTouchListener onTouchListener;
+    Handler handler = new Handler();
+
+    public static final MediaType JSON
+            = MediaType.get("application/json; charset=utf-8");
+
+    private OkHttpClient buildHttpClient() {
+        return new OkHttpClient.Builder()
+                .retryOnConnectionFailure(true)
+                .connectTimeout(30, TimeUnit.SECONDS)
+                .build();
+    }
+
+    OkHttpClient client = buildHttpClient();
+    private AMapLocationClient mLocationClient = null;
+
+    private static final int SAMPLE_RATE = 16000;
+    private static boolean startRecord = false;
+    private static AudioRecord record = null;
+    private static int miniBufferSize = 0;  // 1280 bytes 648 byte 40ms, 0.04s
+    static final String hostUrl = "https://iat-api.xfyun.cn/v2/iat"; //中英文，http url 不支持解析 ws/wss schema
+    private static final String appid = "705c5357"; //在控制台-我的应用获取
+    //    private static final String appid = "6c157d10"; //在控制台-我的应用获取
+    static final String apiSecret = "N2JlZTdlZWJhY2UyMDJiOTZkMDUxYzM3"; //在控制台-我的应用-语音听写（流式版）获取
+    //    static final String apiSecret = "MGY0YjM4NWMyZDYyYWRlMmI2MTlhZmZk"; //在控制台-我的应用-语音听写（流式版）获取
+    static final String apiKey = "f6ba7d5007621a7c7570c2d39437e861"; //在控制台-我的应用-语音听写（流式版）获取
+    //    static final String apiKey = "8735f05eb184366efebb03483591ff41"; //在控制台-我的应用-语音听写（流式版）获取
+    private static final String TAG = "MainActivity";
+    public static final int StatusFirstFrame = 0;
+    public static final int StatusContinueFrame = 1;
+    public static final int StatusLastFrame = 2;
+    public static final Gson json = new Gson();
+    private static final int MAX_QUEUE_SIZE = 2500;  // 100 seconds audio, 1 / 0.04 * 100
+    static WebIATWS.Decoder decoder = new WebIATWS.Decoder();
+    private static final BlockingQueue<byte[]> bufferQueue = new ArrayBlockingQueue<>(MAX_QUEUE_SIZE);
+
+    List<MessageBean> messageBeanList = new ArrayList<>();
+    List<MessageBean> drawMessageBeanList = new ArrayList<>();
+    ChatAdapter chatAdapter;
+    ChatDrawAdapter drawAdapter;
 
     @Override
     public IBinder onBind(Intent intent) {
@@ -38,68 +162,1105 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
     public void onCreate() {
         super.onCreate();
         windowManager = (WindowManager) getSystemService(WINDOW_SERVICE);
-        Notification notification = new Notification.Builder(this, CHANNEL_ID)
-                .setContentTitle("Floating Window Service")
-                .setContentText("This is running in the foreground.")
-                .setSmallIcon(R.drawable.pen_icon)
-                .build();
+        cameraManager = (CameraManager) getSystemService(Context.CAMERA_SERVICE);
+        Notification notification = new Notification.Builder(this, CHANNEL_ID).setContentTitle("ArtAgent").setContentText("ArtAgent is running.").setSmallIcon(R.drawable.newpen).build();
 
-        startForeground(1, notification);
-        floatingIcon = new ImageView(this);
-        floatingIcon.setImageResource(R.drawable.pen_icon);
+        LayoutInflater inflater = (LayoutInflater) getSystemService(LAYOUT_INFLATER_SERVICE);
+        layout = inflater.inflate(R.layout.talkway, null);
+        flFrame = layout.findViewById(R.id.fl_frame);
+        ivDotView = layout.findViewById(R.id.iv_dot_view);
+        etInput = layout.findViewById(R.id.et_input);
+        ivSend = layout.findViewById(R.id.btn_send);
+        ivPaint = layout.findViewById(R.id.btn_paint);
+        ivMirco = layout.findViewById(R.id.btn_mirco);
+        llCon1 = layout.findViewById(R.id.ll_con_1);
+        llTool = layout.findViewById(R.id.ll_tool);
+        tv1 = layout.findViewById(R.id.tv_1);
+        tv2 = layout.findViewById(R.id.tv_2);
+        tv3 = layout.findViewById(R.id.tv_3);
+        tv4 = layout.findViewById(R.id.tv_4);
+        tv5 = layout.findViewById(R.id.tv_5);
+        tv6 = layout.findViewById(R.id.tv_6);
+        tv7 = layout.findViewById(R.id.tv_7);
+        ll0 = layout.findViewById(R.id.ll_0);
+        fl1 = layout.findViewById(R.id.fl_1);
+        tvTitle = layout.findViewById(R.id.tv_title);
 
-        final WindowManager.LayoutParams params;
-        params = new WindowManager.LayoutParams(  // 设置图标为 60*60 像素
-                dpToPx(60),
-                dpToPx(60),
-                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
-                PixelFormat.TRANSLUCENT);
-
-        params.gravity = Gravity.TOP | Gravity.START;
-        params.x = 0;
-        params.y = 0;
-
-        floatingIcon.setOnTouchListener(new View.OnTouchListener() {
-            private int lastAction;
-            private int initialX;
-            private int initialY;
-            private float initialTouchX;
-            private float initialTouchY;
-
+        ivPaint.setOnClickListener(new View.OnClickListener() {
             @Override
-            public boolean onTouch(View view, MotionEvent motionEvent) {
-                switch (motionEvent.getAction()) {
-                    case MotionEvent.ACTION_DOWN:
-                        initialX = params.x;
-                        initialY = params.y;
-                        initialTouchX = motionEvent.getRawX();
-                        initialTouchY = motionEvent.getRawY();
-                        lastAction = motionEvent.getAction();
-                        return true;
-                    case MotionEvent.ACTION_MOVE:
-                        params.x = initialX + (int) (motionEvent.getRawX() - initialTouchX);
-                        params.y = initialY + (int) (motionEvent.getRawY() - initialTouchY);
-                        windowManager.updateViewLayout(floatingIcon, params);
-                        lastAction = motionEvent.getAction();
-                        return true;
-                    case MotionEvent.ACTION_UP:
-                        if (lastAction == MotionEvent.ACTION_DOWN ||
-                                Math.abs(motionEvent.getRawX() - initialTouchX) < 10 &&
-                                        Math.abs(motionEvent.getRawY() - initialTouchY) < 10) {
-                            // 在点击事件中，我们调用 getLatestTexts()
-                            getLatestTexts();
-                        }
-                        lastAction = motionEvent.getAction();
-                        return lastAction != MotionEvent.ACTION_MOVE;
-                    default:
-                        return false;
+            public void onClick(View view) {
+                ll0.setVisibility(View.GONE);
+                fl1.setVisibility(View.VISIBLE);
+                tvTitle.setText("Draw");
+                fl1.removeAllViews();
+                fl1.addView(getViewDraw(), new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT));
+
+
+                requestImage();
+
+            }
+        });
+
+        tv1.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                ll0.setVisibility(View.GONE);
+                fl1.setVisibility(View.VISIBLE);
+                tvTitle.setText("Location");
+                fl1.removeAllViews();
+                View view1 = getView1();
+                fl1.addView(view1, new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT));
+                btnLocationClick(view1);
+            }
+        });
+        tv2.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                ll0.setVisibility(View.GONE);
+                fl1.setVisibility(View.VISIBLE);
+                tvTitle.setText("Emotion");
+                fl1.removeAllViews();
+                fl1.addView(getView4(), new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT));
+            }
+        });
+        tv3.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                ll0.setVisibility(View.GONE);
+                fl1.setVisibility(View.VISIBLE);
+                tvTitle.setText("Content");
+                fl1.removeAllViews();
+                fl1.addView(getView3(), new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT));
+
+            }
+        });
+        tv4.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                ll0.setVisibility(View.GONE);
+                fl1.setVisibility(View.VISIBLE);
+                tvTitle.setText("Camera");
+                fl1.removeAllViews();
+                fl1.addView(getView4(), new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT));
+            }
+        });
+        tv5.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                ll0.setVisibility(View.GONE);
+                fl1.setVisibility(View.VISIBLE);
+                tvTitle.setText("Gallery");
+                fl1.removeAllViews();
+                fl1.addView(getView5(), new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT));
+
+            }
+        });
+        tv6.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                ll0.setVisibility(View.GONE);
+                fl1.setVisibility(View.VISIBLE);
+                tvTitle.setText("Music");
+                fl1.removeAllViews();
+                fl1.addView(getView2(), new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT));
+
+            }
+        });
+        tv7.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                ll0.setVisibility(View.GONE);
+                fl1.setVisibility(View.VISIBLE);
+                tvTitle.setText("Action");
+                fl1.removeAllViews();
+                fl1.addView(getView2(), new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT));
+
+            }
+        });
+
+        ivMirco.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                btnRecordClick();
+            }
+        });
+
+        ivSend.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                if (fl1.getVisibility() == View.GONE) {
+                    ll0.setVisibility(View.GONE);
+                    fl1.setVisibility(View.VISIBLE);
+                    tvTitle.setText("Chat");
+                    fl1.removeAllViews();
+                    fl1.addView(getViewChat(), new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT));
+                    messageBeanList.add(new MessageBean(etInput.getText().toString(), true));
+                    chatAdapter.notifyDataSetChanged();
+                    etInput.setText("");
+                    requestChat();
+                } else {
+                    messageBeanList.add(new MessageBean(etInput.getText().toString(), true));
+                    chatAdapter.notifyDataSetChanged();
+                    etInput.setText("");
+                    requestChat();
                 }
             }
         });
 
-        windowManager.addView(floatingIcon, params);
+        chatAdapter = new ChatAdapter(messageBeanList);
+        drawAdapter = new ChatDrawAdapter(drawMessageBeanList);
+
+        etInput.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                etInput.requestFocus();
+                InputMethodManager inputMethodManager = (InputMethodManager) getSystemService(INPUT_METHOD_SERVICE);
+                inputMethodManager.showSoftInput(etInput, InputMethodManager.SHOW_IMPLICIT);
+            }
+        });
+
+        startForeground(1, notification);
+
+        final WindowManager.LayoutParams params;
+
+        params = new WindowManager.LayoutParams(  // 设置聊天框大小
+                dpToPx(344), WindowManager.LayoutParams.WRAP_CONTENT,
+                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+                WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL, PixelFormat.TRANSLUCENT);
+
+        params.gravity = Gravity.CENTER_VERTICAL | Gravity.START;
+        params.x = 0;
+        params.y = 0;
+
+        onTouchListener = new View.OnTouchListener() {
+            @Override
+            public boolean onTouch(View view, MotionEvent motionEvent) {
+                switch (motionEvent.getAction()) {
+                    case MotionEvent.ACTION_DOWN:
+                        // 记录初始位置和触摸点的坐标
+                        initialX = params.x;
+                        initialY = params.y;
+                        initialTouchX = motionEvent.getRawX();
+                        initialTouchY = motionEvent.getRawY();
+//                        time = System.currentTimeMillis();
+                        return true;
+                    case MotionEvent.ACTION_MOVE:
+                        // 计算偏移量
+                        int xOffset = (int) (motionEvent.getRawX() - initialTouchX);
+                        int yOffset = (int) (motionEvent.getRawY() - initialTouchY);
+                        // 更新布局位置
+                        params.x = initialX + xOffset;
+                        params.y = initialY + yOffset;
+                        // 更新视图
+                        windowManager.updateViewLayout(layout, params);
+                        return true;
+//                    case MotionEvent.ACTION_UP:
+//                        long timeSpace = (System.currentTimeMillis() - time);
+//                        if (timeSpace < 200) {
+//                            toggleOtherLayout();
+//                            time = 0;
+//                        }
+//                        return true;
+                }
+                return false;
+            }
+        };
+
+        ivDotView.setOnTouchListener(new DoubleClickListener() {
+            @Override
+            public void onDoubleClick(View v) {
+                super.onDoubleClick(v);
+                toggleOtherLayout();
+            }
+
+            @Override
+            public void onSingleClick(View v) {
+                super.onSingleClick(v);
+                if (!isOtherLayoutVisible) {
+                    return;
+                }
+                if (llTool.getVisibility() == View.VISIBLE) {
+//                    llTool.setVisibility(View.GONE);
+                    animateCollapseV(llTool);
+                    messageBeanList.clear();
+                    drawMessageBeanList.clear();
+                } else {
+                    if (fl1.getVisibility() == View.VISIBLE) {
+                        fl1.setVisibility(View.GONE);
+                        ll0.setVisibility(View.VISIBLE);
+                    }
+//                    llTool.setVisibility(View.VISIBLE);
+                    animateExpandV(llTool);
+
+                }
+            }
+        });
+
+        flFrame.setOnTouchListener(onTouchListener);
+
+        // 将水平线性布局添加到悬浮窗口中
+        windowManager.addView(layout, params);
         TextAccessibilityService.setTextCallback(this);
+    }
+
+    private void requestImage() {
+        String input = etInput.getText().toString();
+        drawMessageBeanList.add(new MessageBean(input, true));
+        drawAdapter.notifyDataSetChanged();
+        etInput.setText("");
+
+        String combinedText = "Given the context of user, which may contain irrelevant information, " +
+                "analyze the MOST LIKELY PAINTING INTENTION of the user, and provide painting suggestions." /*+
+                "【Content on the phone】:【" + writeText + "】【Location】:【" + mapText + "】【Action】:【】" +
+                "【User command】:【" + recordText + ","*/ + input/* + "】【Emotion】:【" + faceText +"】"*/;
+        Log.e(TAG, "draw: " + combinedText);
+
+        JSONObject data = new JSONObject();
+        try {
+            data.put("userID", 12345);
+            data.put("cnt", 0);
+            data.put("width", 768);
+            data.put("height", 768);
+
+            JSONArray chatbot = new JSONArray();
+            chatbot.put(combinedText);
+//            chatbot.put(textText);
+            data.put("chatbot", chatbot);
+
+            JSONArray history = new JSONArray();
+            JSONObject historyItem1 = new JSONObject();
+            historyItem1.put("role", "user");
+            historyItem1.put("content", combinedText);
+            history.put(historyItem1);
+            JSONObject historyItem2 = new JSONObject();
+            historyItem2.put("role", "assistant");
+//            historyItem2.put("content", textText);
+            history.put(historyItem2);
+            data.put("history", history);
+        } catch (JSONException e) {
+            e.printStackTrace();
+        }
+
+        post("http://166.111.139.118:22231/gpt4_sd_draw", data.toString(), new Callback() {
+            @Override
+            public void onFailure(@NonNull Call call, @NonNull IOException e) {
+                Log.e(TAG, "onFailure: gpt4_sd_draw");
+                e.printStackTrace();
+                handler.post(() -> {
+                    drawMessageBeanList.add(new MessageBean("https://aff.bstatic.com/images/hotel/840x460/119/119733201.jpg", false));
+                    drawAdapter.notifyDataSetChanged();
+                });
+            }
+
+            @Override
+            public void onResponse(@NonNull Call call, @NonNull Response response) throws IOException {
+                if (!response.isSuccessful())
+                    throw new IOException("Unexpected code " + response);
+
+                // 解析服务器的响应
+                final String resStr = Objects.requireNonNull(response.body()).string();
+
+                // 使用 Gson 解析 JSON 数据
+                Gson gson = new Gson();
+                Type type = new TypeToken<Map<String, Object>>() {
+                }.getType();
+                Map<String, Object> resMap = gson.fromJson(resStr, type);
+
+                String imageUrl = (String) resMap.get("image_url");
+
+                // 使用Glide或者其他库从imageUrl加载图像，并显示在drawView中
+                handler.post(() -> {
+                    drawMessageBeanList.add(new MessageBean("https://aff.bstatic.com/images/hotel/840x460/119/119733201.jpg", false));
+                    drawAdapter.notifyDataSetChanged();
+                });
+            }
+        });
+    }
+
+    private void requestChat() {
+        String input = etInput.getText().toString();
+//        String recordText = recordView.getText().toString();
+//        String faceText = faceView.getText().toString();
+//        String mapText = mapView.getText().toString();
+//        String writeText = writeView.getText().toString();
+
+        //合并所有视图中的文本
+        String combinedText = "Given the context of user, which may contain irrelevant information, " +
+                "analyze the MOST LIKELY PAINTING INTENTION of the user, and provide painting suggestions." +
+               /* "【Content on the phone】:【" + writeText + "】【Location】:【" + mapText + "】【Action】:【】" +
+                "【User command】:【" + recordText + "," + */input /*+ "】【Emotion】:【" + faceText +"】"*/;
+        Log.e(TAG, "predict: " + combinedText);
+
+        // 构建发送的数据
+        JSONObject data = new JSONObject();
+        try {
+            data.put("input", combinedText);
+            data.put("chatbot", new JSONArray());
+            data.put("history", new JSONArray());
+            data.put("userID", 123456);
+            Log.e(TAG, "onCreate: data");
+        } catch (JSONException e) {
+            e.printStackTrace();
+        }
+
+        // 发送请求到服务器
+        // 不要在主线程中执行网络请求，因为这可能导致应用的用户界面无响应。OkHttp库已经在新的线程中处理了这个问题
+        post("http://166.111.139.118:22231/gpt4_predict", data.toString(), new Callback() {
+            @Override
+            public void onFailure(@NonNull Call call, @NonNull IOException e) {
+                Log.e(TAG, "onFailure: gpt4");
+                e.printStackTrace();
+                handler.post(new Runnable() {
+                    @Override
+                    public void run() {
+                        messageBeanList.add(new MessageBean("The creation you're envisioning is a chicken, intricately assembled from various types of vegetable leaves. Lettuce forms its wings, celery shapes the body, and carrot tops act as the tail, with even the detailed feathering hinted at by asparagus spears. ", false));
+                        chatAdapter.notifyDataSetChanged();
+                    }
+                });
+            }
+
+            @Override
+            public void onResponse(@NonNull Call call, @NonNull Response response) throws IOException {
+                if (!response.isSuccessful())
+                    throw new IOException("Unexpected code " + response);
+
+                // 将服务器的响应显示给用户
+                final String resStr = Objects.requireNonNull(response.body()).string();
+
+                // 使用 Gson 解析 JSON 数据
+                Gson gson = new Gson();
+                Type type = new TypeToken<Map<String, Object>>() {
+                }.getType();
+                Map<String, Object> resMap = gson.fromJson(resStr, type);
+
+                List<Map<String, String>> history = (List<Map<String, String>>) resMap.get("history");
+                String assistantContent = "";
+                for (Map<String, String> item : history) {
+                    if (item.get("role").equals("assistant")) {
+                        assistantContent = item.get("content");
+                    }
+                }
+
+                final String displayContent = assistantContent;
+                Log.e(TAG, "onResponse: " + displayContent);
+
+                handler.post(() -> {
+                    messageBeanList.add(new MessageBean(displayContent, false)); // 更新TextView的内容
+                    chatAdapter.notifyDataSetChanged();
+                });
+            }
+        });
+    }
+
+    private View getViewChat() {
+        View view = LayoutInflater.from(this).inflate(R.layout.layout_chat, null);
+        RecyclerView recyclerView = view.findViewById(R.id.rv_list);
+        recyclerView.setLayoutManager(new LinearLayoutManager(this));
+        recyclerView.setAdapter(chatAdapter);
+        return view;
+    }
+
+    private void btnRecordClick() {
+        if (!startRecord) {
+            startRecord = true;
+            startRecordThread();
+            startAsrThread();
+            showDialog();
+            ivMirco.setEnabled(false);
+            Log.e(TAG, "onCreate: 3");
+        }
+    }
+
+    AlertDialog dialog;
+
+    private void showDialog() {
+//        if (dialog != null && dialog.isShowing()) {
+//            return;
+//        }
+//        handler.post(new Runnable() {
+//            @Override
+//            public void run() {
+//                AlertDialog.Builder builder = new AlertDialog.Builder(getApplicationContext());
+//                builder.setTitle("提示");
+//                builder.setMessage("识别中，请稍等");
+//                dialog = builder.create();
+//                builder.show();
+//            }
+//        });
+
+    }
+
+    private void dismissDialog() {
+//        handler.post(new Runnable() {
+//            @Override
+//            public void run() {
+//                if(dialog != null){
+//                    dialog.dismiss();
+//                }
+//            }
+//        });
+    }
+
+
+    // 发送POST请求的方法
+    void post(String url, String json, Callback callback) {
+        RequestBody body = RequestBody.create(json, JSON);
+        Request request = new Request.Builder()
+                .url(url)
+                .post(body)
+                .build();
+        client.newCall(request).enqueue(callback);
+    }
+
+
+    private void initRecorder() {  // 采样率16k或8K、位长16bit、单声道
+        // buffer size in bytes 1280
+        miniBufferSize = AudioRecord.getMinBufferSize(SAMPLE_RATE,
+                AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT);
+        if (miniBufferSize == AudioRecord.ERROR || miniBufferSize == AudioRecord.ERROR_BAD_VALUE) {
+            Log.e(TAG, "Audio buffer can't initialize!");
+            return;
+        }
+
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            return;
+        }
+        record = new AudioRecord(MediaRecorder.AudioSource.MIC,
+                SAMPLE_RATE, AudioFormat.CHANNEL_IN_MONO,
+                AudioFormat.ENCODING_PCM_16BIT, miniBufferSize);
+        if (record.getState() != AudioRecord.STATE_INITIALIZED) {
+            Log.e(TAG, "Audio Record can't initialize!");
+            return;
+        }
+        Log.i(TAG, "Record init okay");
+    }
+
+
+    private void startRecordThread() {
+        new Thread(() -> {
+            startRecord = true;
+            initRecorder();
+            record.startRecording();
+            Process.setThreadPriority(Process.THREAD_PRIORITY_AUDIO);
+            while (startRecord) {
+                byte[] buffer = new byte[miniBufferSize / 2];
+                int read = record.read(buffer, 0, buffer.length);
+                if (read == AudioRecord.ERROR_INVALID_OPERATION) {
+                    Log.e(TAG, "Invalid operation error");
+                    break;
+                }
+                try {
+                    bufferQueue.put(buffer);
+                } catch (InterruptedException e) {
+                    Log.e(TAG, e.getMessage());
+                    break;
+                }
+                // Check if recording should be stopped
+                if (!startRecord) {
+                    break;
+                }
+            }
+            record.stop();
+            record.release();
+            record = null;
+        }).start();
+    }
+
+    // 整个会话时长最多持续60s，或者超过10s未发送数据，服务端会主动断开连接
+    void startAsrThread() {
+        // 构建鉴权url
+        String authUrl = null;
+        try {
+            authUrl = WebIATWS.getAuthUrl(hostUrl, apiKey, apiSecret);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        OkHttpClient client = new OkHttpClient.Builder()
+                .readTimeout(10, TimeUnit.SECONDS)
+                .pingInterval(20, TimeUnit.SECONDS)  // 设置超时时间
+                .build();
+        String url = Objects.requireNonNull(authUrl).replace("http://", "ws://").replace("https://", "wss://");
+        Request request = new Request.Builder().url(url).build();
+
+        // 录音关闭了，还在发送中间帧
+        WebSocket webSocket = client.newWebSocket(request,  // 建立连接
+                new WebSocketListener() {
+                    @Override
+                    public void onOpen(@NonNull WebSocket webSocket, @NonNull Response response) {
+                        super.onOpen(webSocket, response);
+                        new Thread(() -> {
+
+                            //连接成功，开始发送数据
+                            int frameSize = 1280; //每一帧音频的大小,建议每 40ms 发送 122B
+                            int intervel = 40;
+                            int status = StatusFirstFrame;  // 音频的状态
+
+                            try {
+                                byte[] buffer;  // 发送音频
+                                end:
+                                while (true) {
+                                    buffer = null;
+                                    try {
+                                        buffer = bufferQueue.take();
+                                    } catch (InterruptedException e) {
+                                        status = StatusLastFrame;
+                                        Thread.currentThread().interrupt();
+                                        Log.e(TAG, "interrupt");
+                                        break;  // 线程被阻塞时停止音频
+                                    }
+                                    int len = 0;
+                                    if (buffer == null) {
+                                        status = StatusLastFrame;
+
+                                        startRecord = false;  // !!!
+                                        if (record != null) {
+                                            record.stop();
+                                            record.release();
+                                            record = null;
+                                        }
+
+
+                                        Log.e(TAG, "last");
+                                    } else {
+                                        len = buffer.length;
+                                    }
+
+                                    switch (status) {
+                                        case StatusFirstFrame:   // 第一帧音频status = 0
+                                            JsonObject frame = new JsonObject();
+                                            JsonObject business = new JsonObject();  //第一帧必须发送
+                                            JsonObject common = new JsonObject();  //第一帧必须发送
+                                            JsonObject data = new JsonObject();  //每一帧都要发送
+                                            // 填充common
+                                            common.addProperty("app_id", appid);
+                                            //填充business
+                                            business.addProperty("language", "zh_cn");
+                                            business.addProperty("domain", "iat");
+                                            business.addProperty("accent", "mandarin");
+                                            //business.addProperty("nunum", 0);
+                                            //business.addProperty("ptt", 0);//标点符号
+                                            //business.addProperty("vinfo", 1);
+                                            business.addProperty("dwa", "wpgs");//动态修正(若未授权不生效，在控制台可免费开通)
+                                            //填充data
+                                            data.addProperty("status", StatusFirstFrame);
+                                            data.addProperty("format", "audio/L16;rate=16000");
+                                            data.addProperty("encoding", "raw");
+                                            data.addProperty("audio", Base64.getEncoder().encodeToString(Arrays.copyOf(buffer, len)));
+                                            //填充frame
+                                            frame.add("common", common);
+                                            frame.add("business", business);
+                                            frame.add("data", data);
+                                            webSocket.send(frame.toString());
+                                            status = StatusContinueFrame;  // 发送完第一帧改变status 为 1
+                                            break;
+                                        case StatusContinueFrame:  //中间帧status = 1
+                                            JsonObject frame1 = new JsonObject();
+                                            JsonObject data1 = new JsonObject();
+                                            data1.addProperty("status", StatusContinueFrame);
+                                            data1.addProperty("format", "audio/L16;rate=16000");
+                                            data1.addProperty("encoding", "raw");
+                                            data1.addProperty("audio", Base64.getEncoder().encodeToString(Arrays.copyOf(buffer, len)));
+                                            frame1.add("data", data1);
+                                            webSocket.send(frame1.toString());
+                                            break;
+                                        case StatusLastFrame:    // 最后一帧音频status = 2 ，标志音频发送结束
+                                            JsonObject frame2 = new JsonObject();
+                                            JsonObject data2 = new JsonObject();
+                                            data2.addProperty("status", StatusLastFrame);
+                                            data2.addProperty("audio", "");
+                                            data2.addProperty("format", "audio/L16;rate=16000");
+                                            data2.addProperty("encoding", "raw");
+                                            frame2.add("data", data2);
+                                            webSocket.send(frame2.toString());
+
+
+                                            startRecord = false;  // !!!
+                                            if (record != null) {
+                                                record.stop();
+                                                record.release();
+                                                record = null;
+                                            }
+
+
+                                            break end;
+                                    }
+                                    Thread.sleep(intervel); //模拟音频采样延时
+                                }
+                            } catch (InterruptedException e) {
+                                e.printStackTrace();
+                            }
+                        }).start();
+                    }
+
+                    @Override
+                    public void onMessage(@NonNull WebSocket webSocket, @NonNull String text) {
+                        super.onMessage(webSocket, text);
+                        WebIATWS.ResponseData resp = json.fromJson(text, WebIATWS.ResponseData.class);
+                        if (resp != null) {
+                            if (resp.getCode() != 0) {
+                                Log.e(TAG, "code=>" + resp.getCode() + " error=>" + resp.getMessage() + " sid=" + resp.getSid());
+                                Log.e(TAG, "错误码查询链接：https://www.xfyun.cn/document/error-code");
+                                startRecord = false;
+                                // 停止并释放录音
+                                if (record != null) {
+                                    record.stop();
+                                    record.release();
+                                    record = null;
+                                }
+                                // 在UI线程上启用按钮
+                                handler.post(() -> {
+//                                    Button record_button = findViewById(R.id.record_button);
+//                                    record_button.setText("Start Record");
+                                    ivMirco.setEnabled(true); // 启用按钮，以供下一次录音使用
+                                    Log.e(TAG, "onCreate: 5");
+                                });
+                                return;
+                            }
+                            if (resp.getData() != null) {
+                                if (resp.getData().getResult() != null) {
+                                    WebIATWS.Text te = resp.getData().getResult().getText();
+                                    try {
+                                        decoder.decode(te);
+                                        handler.post(() -> {
+//                                            TextView recordView = findViewById(R.id.record_view);
+                                            etInput.setText(decoder.toString());
+                                            Log.e(TAG, resp.getMessage() + " " + resp.getData().getResult().getText());
+                                            showDialog();
+                                            ivMirco.setEnabled(false);
+                                            Log.e(TAG, "onCreate: 6");
+                                        });
+                                    } catch (Exception e) {
+                                        handler.post(() -> {
+                                            dismissDialog();
+                                            ivMirco.setEnabled(true); // 启用按钮，以供下一次录音使用
+                                            Log.e(TAG, "onCreate: 7");
+                                        });
+                                        e.printStackTrace();
+                                    }
+                                }
+                                if (resp.getData().getStatus() == 2) {
+                                    startRecord = false;  // 停止录音
+                                    // 停止并释放录音
+                                    if (record != null) {
+                                        record.stop();
+                                        record.release();
+                                        record = null;
+                                    }
+                                    Log.e(TAG, "语音识别结果：" + decoder.toString());
+                                    handler.post(() -> {
+//                                        Button record_button = findViewById(R.id.record_button);
+//                                        record_button.setText("Start Record");
+                                        dismissDialog();
+                                        ivMirco.setEnabled(true); // 启用按钮，以供下一次录音使用
+                                        Log.e(TAG, "onCreate: 8");
+                                    });
+
+                                    decoder.discard();
+                                    webSocket.close(1000, "");
+                                    // 在UI线程上启用按钮
+                                }
+                            }
+                        }
+                    }
+
+                    @Override
+                    public void onFailure(@NonNull WebSocket webSocket, @NonNull Throwable t, Response response) {
+                        super.onFailure(webSocket, t, response);
+                        startRecord = false;
+                        // 停止并释放录音
+                        if (record != null) {
+                            record.stop();
+                            record.release();
+                            record = null;
+                        }
+                        try {
+                            if (null != response) {
+                                int code = response.code();
+                                Log.e(TAG, "onFailure code: " + code);
+                                Log.e(TAG, "onFailure body:" + Objects.requireNonNull(response.body()).string());
+                                if (101 != code) {
+                                    Log.e(TAG, "connection failed");
+                                    System.exit(0);
+                                }
+                            }
+                        } catch (IOException e) {
+                            e.printStackTrace();
+                        }
+                        // 在UI线程上启用按钮
+                        handler.post(() -> {
+//                            Button record_button = findViewById(R.id.record_button);
+//                            record_button.setText("Start Record");
+                            dismissDialog();
+                            ivMirco.setEnabled(true); // 启用按钮，以供下一次录音使用
+                        });
+                    }
+                });
+    }
+
+
+    private void btnLocationClick(View view) {
+        AMapLocationClient.updatePrivacyShow(getApplicationContext(), true, true);
+        AMapLocationClient.updatePrivacyAgree(getApplicationContext(), true);
+        try {
+            mLocationClient = new AMapLocationClient(getApplicationContext());
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        AMapLocationClientOption mLocationOption = new AMapLocationClientOption();
+        mLocationOption.setGeoLanguage(AMapLocationClientOption.GeoLanguage.EN);  // 设置为英文
+        mLocationOption.setLocationMode(AMapLocationClientOption.AMapLocationMode.Hight_Accuracy);
+        mLocationOption.setOnceLocation(true);
+        mLocationOption.setOnceLocationLatest(true);
+        mLocationOption.setNeedAddress(true);
+        mLocationClient.setLocationOption(mLocationOption);
+
+        if (mLocationClient != null) {
+            mLocationClient.setLocationListener(amapLocation -> {
+                if (amapLocation != null) {
+                    if (amapLocation.getErrorCode() == 0) {
+                        String address = amapLocation.getAddress();  //获取详细地址信息
+                        ((EditText) view.findViewById(R.id.et_location)).setText(address);
+                    }
+                } else {
+                    Log.e("AmapError", "location Error, ErrCode:" + amapLocation.getErrorCode() + ", errInfo:"
+                            + amapLocation.getErrorInfo());
+                }
+            });
+            mLocationClient.startLocation();
+        } else {
+            Log.e("Amap null", "onCreate: Amap null");
+        }
+    }
+
+    private View getViewDraw() {
+        View view = LayoutInflater.from(this).inflate(R.layout.layout_chat, null);
+        RecyclerView recyclerView = view.findViewById(R.id.rv_list);
+        recyclerView.setLayoutManager(new LinearLayoutManager(this));
+        recyclerView.setAdapter(drawAdapter);
+        return view;
+    }
+
+    private View getView1() {
+        View view = LayoutInflater.from(this).inflate(R.layout.view_location, null);
+        return view;
+    }
+
+    TextView tvText;
+
+    private View getView2() {
+        View view = LayoutInflater.from(this).inflate(R.layout.view_emotion2, null);
+        tvText = view.findViewById(R.id.tv_text);
+        Intent intent = new Intent("com.example.app.ACTION_RESULT");
+        LocalBroadcastManager.getInstance(this).sendBroadcast(intent);
+        return view;
+    }
+
+    private View getView3() {
+        View view = LayoutInflater.from(this).inflate(R.layout.view_content, null);
+        return view;
+    }
+
+
+    private CameraManager cameraManager;
+    private CameraDevice cameraDevice;
+    private TextureView textureView;
+    TextView tvTake;
+    RelativeLayout rlCamara;
+
+    private View getView4() {
+        View view = LayoutInflater.from(this).inflate(R.layout.view_camera, null);
+        tvTake = view.findViewById(R.id.tv_emotion);
+        rlCamara = view.findViewById(R.id.rl_camera);
+        view.findViewById(R.id.iv_take).setOnClickListener(v -> {
+            final CaptureRequest.Builder captureRequestBuilder;
+            try {
+                captureRequestBuilder = cameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_STILL_CAPTURE);
+
+                captureRequestBuilder.addTarget(imageReader.getSurface());
+                List<Surface> surfaces = new ArrayList<>();
+                surfaces.add(imageReader.getSurface());
+
+                // Create a CameraCaptureSession for camera preview
+                cameraDevice.createCaptureSession(surfaces, new CameraCaptureSession.StateCallback() {
+                    @Override
+                    public void onConfigured(@NonNull CameraCaptureSession cameraCaptureSession) {
+                        try {
+                            cameraCaptureSession.capture(captureRequestBuilder.build(), null, null);
+                        } catch (CameraAccessException e) {
+                            e.printStackTrace();
+                        }
+                    }
+
+                    @Override
+                    public void onConfigureFailed(@NonNull CameraCaptureSession cameraCaptureSession) {
+
+                    }
+                }, null);
+            } catch (CameraAccessException e) {
+                e.printStackTrace();
+            }
+        });
+        textureView = view.findViewById(R.id.textureView);
+
+        // Open the camera and set up the camera device
+        try {
+
+
+            // Get the front camera ID
+            if (frontCameraId == null) {
+                try {
+                    for (String cameraId : cameraManager.getCameraIdList()) {
+                        CameraCharacteristics characteristics = cameraManager.getCameraCharacteristics(cameraId);
+                        Integer facing = characteristics.get(CameraCharacteristics.LENS_FACING);
+                        if (facing != null && facing == CameraCharacteristics.LENS_FACING_FRONT) {
+                            frontCameraId = cameraId;
+                            break;
+                        }
+                    }
+                } catch (CameraAccessException e) {
+                    e.printStackTrace();
+                }
+            }
+
+            // Check if the front camera is available
+            if (frontCameraId == null) {
+                Log.e("CameraActivity", "Front camera not available.");
+                frontCameraId = cameraManager.getCameraIdList()[0];
+            }
+
+//            String cameraId = cameraManager.getCameraIdList()[0]; // Use the first camera
+            if (ActivityCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
+                cameraManager.openCamera(frontCameraId, new CameraDevice.StateCallback() {
+                    @Override
+                    public void onOpened(@NonNull CameraDevice camera) {
+                        cameraDevice = camera;
+                        // Now you have the camera device, and you can start camera preview.
+                        startCameraPreview();
+                    }
+
+                    @Override
+                    public void onDisconnected(@NonNull CameraDevice camera) {
+                        cameraDevice.close();
+                        cameraDevice = null;
+                    }
+
+                    @Override
+                    public void onError(@NonNull CameraDevice camera, int error) {
+                        cameraDevice.close();
+                        cameraDevice = null;
+                    }
+                }, null);
+            }
+        } catch (CameraAccessException e) {
+            e.printStackTrace();
+        }
+        return view;
+    }
+
+    // 添加拍照按钮的点击事件
+
+    private void saveImage(Image image) {
+        // 获取图片数据
+        ByteBuffer buffer = image.getPlanes()[0].getBuffer();
+        byte[] bytes = new byte[buffer.remaining()];
+        buffer.get(bytes);
+
+        // 创建保存图片的文件
+        File imagesFolder = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES), "MyCameraApp");
+        if (!imagesFolder.exists()) {
+            imagesFolder.mkdirs();
+        }
+
+        String fileName = "IMG_" + System.currentTimeMillis() + ".jpg";
+        File imageFile = new File(imagesFolder, fileName);
+
+        // 将图片数据保存到文件
+        try (OutputStream outputStream = new FileOutputStream(imageFile)) {
+            outputStream.write(bytes);
+            Log.d("CameraActivity", "Image saved: " + imageFile.getAbsolutePath());
+            rlCamara.setVisibility(View.GONE);
+            tvTake.setVisibility(View.VISIBLE);
+            new PhotoUploader(BitmapFactory.decodeFile(imageFile.getAbsolutePath()), result1 -> tvTake.setText(result1), getApplicationContext()).execute();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    CameraCaptureSession cameraCaptureSession;
+    ImageReader imageReader;
+    private String frontCameraId = null;
+
+
+    private void startCameraPreview() {
+        if (cameraDevice == null || !textureView.isAvailable()) {
+            return;
+        }
+
+        SurfaceTexture surfaceTexture = textureView.getSurfaceTexture();
+        if (surfaceTexture == null) {
+            return;
+        }
+
+        // Get the optimal preview size for the TextureView
+        android.util.Size previewSize = getOptimalPreviewSize();
+
+        // Set the size of the SurfaceTexture and TextureView based on the preview size
+        surfaceTexture.setDefaultBufferSize(previewSize.getWidth(), previewSize.getHeight());
+        ViewGroup.LayoutParams layoutParams = textureView.getLayoutParams();
+        layoutParams.width = previewSize.getWidth();
+        layoutParams.height = previewSize.getHeight();
+        textureView.setLayoutParams(layoutParams);
+
+        // Set up the capture request for the camera preview
+        try {
+            imageReader = ImageReader.newInstance(previewSize.getWidth(), previewSize.getHeight(), ImageFormat.JPEG, 1);
+            imageReader.setOnImageAvailableListener(new ImageReader.OnImageAvailableListener() {
+                @Override
+                public void onImageAvailable(ImageReader reader) {
+                    Log.d(TAG, "onImageAvailable: ");
+                    Image image = reader.acquireLatestImage();
+                    if (image != null) {
+                        saveImage(image);
+                        image.close();
+                    }
+                }
+            }, null);
+
+            Surface previewSurface = new Surface(surfaceTexture);
+            final CaptureRequest.Builder captureRequestBuilder = cameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW);
+            captureRequestBuilder.addTarget(previewSurface);
+//            captureRequestBuilder.addTarget(imageReader.getSurface());
+            List<Surface> surfaces = new ArrayList<>();
+            surfaces.add(previewSurface);
+//            surfaces.add(imageReader.getSurface());
+
+            // Create a CameraCaptureSession for camera preview
+            cameraDevice.createCaptureSession(surfaces, new CameraCaptureSession.StateCallback() {
+                @Override
+                public void onConfigured(@NonNull CameraCaptureSession session) {
+                    try {
+                        cameraCaptureSession = session;
+                        // Start the camera preview
+                        session.setRepeatingRequest(captureRequestBuilder.build(), null, null);
+                        Log.d(TAG, "onConfigured: ");
+//                        handler.postDelayed(() -> {
+//                            try {
+//                                cameraCaptureSession.capture(captureRequestBuilder.build(), null, null);
+//                            } catch (CameraAccessException e) {
+//                                e.printStackTrace();
+//                            }
+//                        }, 1000
+//                        );
+                    } catch (CameraAccessException e) {
+                        e.printStackTrace();
+                    }
+                }
+
+                @Override
+                public void onConfigureFailed(@NonNull CameraCaptureSession session) {
+                    // Handle configuration failure
+                }
+            }, null);
+        } catch (CameraAccessException e) {
+            e.printStackTrace();
+        }
+    }
+
+    // Utility method to get the optimal preview size based on the TextureView's size
+    private android.util.Size getOptimalPreviewSize() {
+        // Implement your logic to find the best preview size for the TextureView
+        // For simplicity, you can return a fixed size here.
+        return new android.util.Size(1920, 1080);
+    }
+
+    private View getView5() {
+        View view = LayoutInflater.from(this).inflate(R.layout.view_gallery, null);
+        RecyclerView recyclerView = view.findViewById(R.id.recycler_view);
+        recyclerView.setLayoutManager(new GridLayoutManager(this, 3));
+        GalleryAdapter adapter = new GalleryAdapter();
+        ArrayList<Integer> list = new ArrayList<>();
+        int[] resIds = new int[]{R.mipmap.i1, R.mipmap.i2, R.mipmap.i3, R.mipmap.i4, R.mipmap.i5, R.mipmap.i6, R.mipmap.i7, R.mipmap.i8, R.mipmap.i9, R.mipmap.i10, R.mipmap.i11, R.mipmap.i12};
+        for (int i = 0; i < 12; i++) {
+            list.add(resIds[i]);
+        }
+        adapter.setList(list);
+        recyclerView.setAdapter(adapter);
+        return view;
+    }
+
+    private void toggleOtherLayout() {
+        if (isOtherLayoutVisible) {
+            if (llTool.getVisibility() == View.VISIBLE) {
+                animateCollapseV(llTool);
+                messageBeanList.clear();
+                drawMessageBeanList.clear();
+//                return;
+            }
+            // 隐藏其他布局
+            animateCollapse(llCon1);
+        } else {
+            // 显示其他布局
+            animateExpand(llCon1);
+        }
+        isOtherLayoutVisible = !isOtherLayoutVisible;
+    }
+
+    private void animateCollapse(final View view) {
+        int originalWidth = view.getMeasuredWidth();
+        ViewPropertyAnimator animator = view.animate().translationXBy(-originalWidth).setDuration(300);
+
+        animator.setListener(new AnimatorListenerAdapter() {
+            @Override
+            public void onAnimationEnd(Animator animation) {
+                view.setVisibility(View.GONE);
+            }
+        });
+
+        animator.start();
+    }
+
+    private void animateExpand(final View view) {
+        view.setVisibility(View.VISIBLE);
+        final int targetWdith = view.getMeasuredWidth();
+
+        ViewPropertyAnimator animator = view.animate().translationXBy(targetWdith).setDuration(300);
+
+        animator.setListener(new AnimatorListenerAdapter() {
+            @Override
+            public void onAnimationEnd(Animator animation) {
+            }
+        });
+
+        animator.start();
+    }
+
+    private void animateCollapseV(final View view) {
+        int originalWidth = view.getMeasuredHeight();
+        ViewPropertyAnimator animator = view.animate().translationYBy(originalWidth).setDuration(300);
+
+        animator.setListener(new AnimatorListenerAdapter() {
+            @Override
+            public void onAnimationEnd(Animator animation) {
+                view.setVisibility(View.GONE);
+            }
+        });
+
+        animator.start();
+    }
+
+    private void animateExpandV(final View view) {
+        view.setVisibility(View.VISIBLE);
+        final int targetWdith = view.getMeasuredHeight();
+
+        ViewPropertyAnimator animator = view.animate().translationYBy(-targetWdith).setDuration(300);
+
+        animator.setListener(new AnimatorListenerAdapter() {
+            @Override
+            public void onAnimationEnd(Animator animation) {
+            }
+        });
+
+        animator.start();
     }
 
     public static int dpToPx(int dp) {
@@ -108,16 +1269,20 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
 
     @Override
     public void onDestroy() {
+        // Release the camera resources if needed
+        if (cameraDevice != null) {
+            cameraDevice.close();
+            cameraDevice = null;
+        }
         super.onDestroy();
-        if (floatingIcon != null) windowManager.removeView(floatingIcon);
+        if (layout != null) windowManager.removeView(layout);
     }
 
     private void getLatestTexts() {
         List<String> latestTexts = TextAccessibilityService.getLatestTexts();
         Log.e("AccessibilityService", "AllText: " + latestTexts);
         saveTextsToPreferences(latestTexts);
-        new Handler(Looper.getMainLooper()).postDelayed(() ->
-                Toast.makeText(FloatingWindowService.this, "您生成的图片将保存至相册", Toast.LENGTH_SHORT).show(), 0);
+        new Handler(Looper.getMainLooper()).postDelayed(() -> Toast.makeText(FloatingWindowService.this, "您生成的图片将保存至相册", Toast.LENGTH_SHORT).show(), 0);
     }
 
     // 将最近获取的文本保存到 SharedPreferences
@@ -131,4 +1296,5 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
     @Override
     public void onTextReceived(List<String> allText) {
     }
+
 }

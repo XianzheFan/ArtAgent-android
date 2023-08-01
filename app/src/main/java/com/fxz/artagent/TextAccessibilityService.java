@@ -24,7 +24,7 @@ public class TextAccessibilityService extends AccessibilityService {
 //    }  // 如果只返回点击的部分
 
     public List<String> getAllTexts(AccessibilityNodeInfo node) {
-        // 所有ui部件都会展开，甚至包括不出现在用户眼前的文字
+        // 所有ui部件都会展开，甚至不包括出现在用户眼前的文字
         List<String> texts = new ArrayList<>();
         if (node != null) {
             if (node.getText() != null) {
@@ -76,7 +76,7 @@ public class TextAccessibilityService extends AccessibilityService {
 //                if (description != null) {  // 部件名称
 //                    Log.e("AccessibilityService", "Content Description: " + description);
 //                }
-
+//
 //                List<String> texts = getAllTexts(nodeInfo);
 //                Log.e("AccessibilityService", "All Texts: " + texts);
 //

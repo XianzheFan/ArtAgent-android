@@ -13,6 +13,9 @@ import android.app.Activity;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.AlertDialog;
+import android.content.BroadcastReceiver;
+import android.content.Context;
+import android.content.IntentFilter;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.media.AudioFormat;
@@ -21,7 +24,6 @@ import android.media.MediaRecorder;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
-import android.os.Looper;
 import android.os.Message;
 import android.os.Process;
 import android.provider.MediaStore;
@@ -29,6 +31,7 @@ import android.provider.Settings;
 import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.TextView;
 import android.net.Uri;
@@ -39,6 +42,7 @@ import android.content.SharedPreferences;
 
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
+import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 
 import com.amap.api.location.AMapLocationClient;
 import com.amap.api.location.AMapLocationClientOption;
@@ -48,6 +52,7 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import com.bumptech.glide.Glide;
+import com.google.android.material.textfield.TextInputEditText;
 import com.google.gson.Gson;
 import java.lang.reflect.Type;
 import com.google.gson.JsonObject;
@@ -75,15 +80,34 @@ import okhttp3.Response;
 import okhttp3.WebSocket;
 import okhttp3.WebSocketListener;
 
+import android.annotation.SuppressLint;
+import android.app.Notification;
+import android.app.Service;
+import android.content.Intent;
+import android.content.res.Resources;
+import android.graphics.PixelFormat;
+import android.os.IBinder;
+import android.os.Looper;
+import android.os.Handler;
+import android.text.TextUtils;
+import android.util.Log;
+import android.view.Gravity;
+import android.view.MotionEvent;
+import android.view.WindowManager;
+import android.widget.Toast;
+import android.widget.ImageView;
+import android.content.SharedPreferences;
+
+import java.util.List;
+
 public class MainActivity extends AppCompatActivity {
     public static final MediaType JSON
             = MediaType.get("application/json; charset=utf-8");
     public static final String CHANNEL_ID = "FloatingWindowServiceChannel";
     Button faceButton;
     EditText faceView;
-    Button musicButton;
-    TextView musicView;
-    MusicRecognition musicRecognition;
+    Button music_button;
+//    TextView music_view;
     Button mapButton;
     EditText mapView;
 
@@ -117,7 +141,6 @@ public class MainActivity extends AppCompatActivity {
     private static final BlockingQueue<byte[]> bufferQueue = new ArrayBlockingQueue<>(MAX_QUEUE_SIZE);
 
     private static final int PERMISSIONS_REQUEST_CODE = 100;
-    @RequiresApi(api = Build.VERSION_CODES.Q)
     private void requestPermissions() {
         // 权限列表
         String[] permissions = {
@@ -178,7 +201,7 @@ public class MainActivity extends AppCompatActivity {
     private void promptForAccessibility() {
         new AlertDialog.Builder(this)
                 .setTitle("无障碍服务")
-                .setMessage("请设置“交互控制-无障碍快捷方式”为“ArtAgent”，并开启本软件“下载服务”权限！")
+                .setMessage("请设置“交互控制-无障碍快捷方式”为“ArtAgent”，并开启本软件“下载服务”权限")
                 .setPositiveButton("好的", (dialog, which) -> {
                     // 用户点击了“好的”按钮，引导他们到无障碍设置页面
                     Intent intent = new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS);
@@ -262,57 +285,44 @@ public class MainActivity extends AppCompatActivity {
     }
 
 
-    @RequiresApi(api = Build.VERSION_CODES.Q)
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+//        if (getSupportActionBar() != null) {
+//            getSupportActionBar().hide();
+//        }
+        //设置空的布局文件，把老的注释了，目的是隐藏掉全屏的界面
         setContentView(R.layout.activity_main);
-        EditText recordView = findViewById(R.id.record_view);
+        //setContentView(new FrameLayout(this));
+        TextInputEditText recordView = findViewById(R.id.record_view);
         requestPermissions();
         requestWriteSettingsPermission();
 
-//        musicButton = findViewById(R.id.music_button);
-//        musicButton.setOnClickListener(v -> {
-//            // 在这里直接启动QQ音乐
-//            Intent launchIntent = getPackageManager().getLaunchIntentForPackage("com.tencent.qqmusic");
-//            if (launchIntent != null) {
-//                startActivity(launchIntent);
+//        music_button = findViewById(R.id.music_button);
+//        music_view = findViewById(R.id.music_view);
+//        final RecordAndRecognize recordAndRecognize = new RecordAndRecognize(this, handler, RequestMetaData.getHostUrl(), RequestMetaData.getJsonStringRequestData());
+//        Thread recordThread = new Thread(recordAndRecognize);
+//        music_button.setOnClickListener(v -> {
+//            if (!recordThread.isAlive()) {
+//                recordThread.start();
+//                music_button.setText("Stop Recording");
+//            } else {
+//                recordAndRecognize.stopRecording();
+//                music_button.setText("Start Recording");
+//                // Retrieve result and update UI
+//                String result = null;
+//                try {
+//                    result = recordAndRecognize.recognizeMusic();
+//                } catch (IOException | SignatureException e) {
+//                    e.printStackTrace();
+//                }
+//                music_view.setText(result);
 //            }
 //        });
-
-
-        musicRecognition = new MusicRecognition();
-        musicButton = findViewById(R.id.music_button);
-        musicView = findViewById(R.id.music_view);
-        ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.RECORD_AUDIO}, 200);
-        musicButton.setOnClickListener(new View.OnClickListener() {
-            boolean isMusicRecording = false;
-            @Override
-            public void onClick(View v) {
-                if (ContextCompat.checkSelfPermission(MainActivity.this,
-                        Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
-                    ActivityCompat.requestPermissions(MainActivity.this,
-                            new String[]{Manifest.permission.RECORD_AUDIO}, 200);
-                } else {
-                    if(!isMusicRecording) {
-                        musicRecognition.recordAudio(12);
-                        isMusicRecording = true;
-                        musicButton.setText("Stop Record");
-                    } else {
-                        musicRecognition.stopRecording();
-                        isMusicRecording = false;
-                        musicButton.setText("Song Recognition");
-                        try {
-                            byte[] audioData = musicRecognition.recordAudio(12);
-                            String musicInfo = musicRecognition.fetchMusicInfo(audioData);
-                            Log.e(TAG, "music: " + musicInfo);
-                            musicView.setText(musicInfo);
-                        } catch (Exception e) {
-                            e.printStackTrace();
-                        }
-                    }
-                }
-            }
+        music_button = findViewById(R.id.music_button);
+        music_button.setOnClickListener(v -> {
+            Intent intent = new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS);
+            startActivity(intent);
         });
 
 
@@ -516,7 +526,7 @@ public class MainActivity extends AppCompatActivity {
             });
         });
 
-        promptForAccessibility();
+//        promptForAccessibility();
         checkDrawOverlayPermission();
         createNotificationChannel();
     }
