@@ -6,21 +6,50 @@
     <RelativeLayout
         android:id="@+id/rl_camera"
         android:layout_width="match_parent"
-        android:layout_height="500dp">
+        android:layout_height="440dp">
 
         <TextureView
             android:id="@+id/textureView"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content" />
+            android:layout_height="wrap_content"/>
+
+        <ImageView
+            android:id="@+id/ellipse_5"
+            android:layout_width="45dp"
+            android:layout_height="45dp"
+            android:layout_alignParentBottom="true"
+            android:layout_centerHorizontal="true"
+            android:layout_marginBottom="5dp"
+            android:src="@drawable/shape_ovel" />
 
         <ImageView
             android:id="@+id/iv_take"
-            android:layout_width="50dp"
-            android:layout_height="50dp"
-            android:layout_alignParentBottom="true"
-            android:layout_centerHorizontal="true"
-            android:background="@drawable/shape_ovel" />
+            android:layout_width="39dp"
+            android:layout_height="39dp"
+            android:layout_alignTop="@id/ellipse_5"
+            android:layout_alignStart="@id/ellipse_5"
+            android:layout_marginTop="3dp"
+            android:layout_marginStart="3dp"
+            android:src="@drawable/ellipse_6" />
 
+        <ImageView
+            android:id="@+id/iv_switch_camera"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_alignParentBottom="true"
+            android:layout_alignParentEnd="true"
+            android:layout_marginBottom="5dp"
+            android:layout_marginEnd="5dp"
+            android:src="@drawable/shape_ovel" />
+
+        <ImageView
+            android:id="@+id/iv_return"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_alignTop="@id/iv_switch_camera"
+            android:layout_alignStart="@id/iv_switch_camera"
+            android:layout_marginEnd="5dp"
+            android:src="@drawable/reverse_camera" />
 
     </RelativeLayout>
 
@@ -29,5 +58,5 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:gravity="center"
-        android:visibility="gone" />
+        android:visibility="visible" />
 </FrameLayout>
