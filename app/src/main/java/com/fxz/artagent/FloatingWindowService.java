@@ -129,14 +129,14 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
     public static final MediaType JSON
             = MediaType.get("application/json; charset=utf-8");
 
-    private OkHttpClient buildHttpClient() {
+    private OkHttpClient buildHttpClient() {  // 天气client
         return new OkHttpClient.Builder()
                 .retryOnConnectionFailure(true)
                 .connectTimeout(30, TimeUnit.SECONDS)
                 .build();
     }
 
-    OkHttpClient client = buildHttpClient();
+    OkHttpClient weatherClient = buildHttpClient();
     private AMapLocationClient mLocationClient = null;
 
     private static final int SAMPLE_RATE = 16000;
@@ -250,7 +250,6 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
             tvTitle.setText("Gallery");
             fl1.removeAllViews();
             fl1.addView(getView5(), new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT));
-
         });
         tv6.setOnClickListener(view -> {
             ll0.setVisibility(View.GONE);
@@ -258,7 +257,6 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
             tvTitle.setText("Music");
             fl1.removeAllViews();
             fl1.addView(getView2(), new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT));
-
         });
         tv7.setOnClickListener(view -> {
             ll0.setVisibility(View.GONE);
@@ -266,7 +264,6 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
             tvTitle.setText("Action");
             fl1.removeAllViews();
             fl1.addView(getView2(), new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT));
-
         });
 
         ivMirco.setOnClickListener(view -> btnRecordClick());
@@ -279,10 +276,11 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
                 fl1.removeAllViews();
                 fl1.addView(getViewChat(), new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT));
             }
-            messageBeanList.add(new MessageBean(etInput.getText().toString(), true));
+            messageBeanList.add(new MessageBean("user", etInput.getText().toString()));
+
             chatAdapter.notifyDataSetChanged();
-            etInput.setText("");
-            requestTopic();  // 第一次发送指令：返回推荐的主题
+            requestTopic();  // 请求完再清空etInput
+            etInput.setText("");  // 第一次发送指令：返回推荐的主题
         });
 
         chatAdapter = new ChatAdapter(messageBeanList);
@@ -370,19 +368,13 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
             data.put("width", 768);
             data.put("height", 768);
 
-            JSONArray chatbot = new JSONArray();
-            data.put("chatbot", chatbot);
-
             JSONArray history = new JSONArray();
-            JSONObject historyItem1 = new JSONObject();
-            historyItem1.put("role", "user");
-            historyItem1.put("content", "The West Lake");
-            history.put(historyItem1);
-
-            JSONObject historyItem2 = new JSONObject();
-            historyItem2.put("role", "assistant");
-            historyItem2.put("content", "You could paint this picture like this: The heart of your canvas should be West Lake, shimmering under the golden sun that is just about to set. Inject it with the hues of tranquility - turquoise and sapphire, laced with gold and peach strokes. Capture the reflection of the mist-covered, lush jade mountains in the crystalline water. In the foreground, include a delicate willow tree, its slender branches draping over the lake, creating intricate patterns on the water, and a stone arch bridge echoing tranquility, making a pathway to the traditional pagodas. Fleeting sculls on the sparkling water add a layer of liveness. The painting should whisper a serene song of nature and time, where the present and past merge hauntingly in the tranquil beauty of the West Lake.");
-            history.put(historyItem2);
+            for (MessageBean messageBean : messageBeanList) {
+                JSONObject historyItem = new JSONObject();
+                historyItem.put("role", messageBean.getRole());
+                historyItem.put("content", messageBean.getMessage());
+                history.put(historyItem);
+            }
             data.put("history", history);
         } catch (JSONException e) {
             e.printStackTrace();
@@ -394,7 +386,7 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
                 Log.e(TAG, "onFailure: gpt4_sd_draw");
                 e.printStackTrace();
                 handler.post(() -> {
-                    messageBeanList.add(new MessageBean("https://aff.bstatic.com/images/hotel/840x460/119/119733201.jpg", false));
+                    messageBeanList.add(new MessageBean("assistant","https://aff.bstatic.com/images/hotel/840x460/119/119733201.jpg"));
                     chatAdapter.notifyDataSetChanged();
                 });
             }
@@ -417,7 +409,7 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
 
                 // 使用Glide或者其他库从imageUrl加载图像，并显示在drawView中
                 handler.post(() -> {
-                    messageBeanList.add(new MessageBean("https://aff.bstatic.com/images/hotel/840x460/119/119733201.jpg", false));
+                    messageBeanList.add(new MessageBean("assistant","https://aff.bstatic.com/images/hotel/840x460/119/119733201.jpg"));
                     chatAdapter.notifyDataSetChanged();
                 });
             }
@@ -426,7 +418,6 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
 
     private void requestTopic() {  // 第一次请求：返回推荐的主题
         String input = etInput.getText().toString();
-        input = "draw a cat";
 //        String recordText = recordView.getText().toString();
 //        String faceText = faceView.getText().toString();
 //        String mapText = mapView.getText().toString();
@@ -450,9 +441,6 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
             data.put("input", combinedText);
             data.put("userID", 123456);
 
-            JSONArray chatbot = new JSONArray();
-            data.put("chatbot", chatbot);
-
             JSONArray history = new JSONArray();
             data.put("history", history);
 
@@ -469,7 +457,7 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
                 Log.e(TAG, "onFailure: gpt4_mode_2");
                 e.printStackTrace();
                 handler.post(() -> {
-                    messageBeanList.add(new MessageBean("gpt4_mode_2 Error", false));
+                    messageBeanList.add(new MessageBean("assistant", "gpt4_mode_2 onFailure Error"));
                     chatAdapter.notifyDataSetChanged();
                 });
             }
@@ -477,7 +465,81 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
             @Override
             public void onResponse(@NonNull Call call, @NonNull Response response) throws IOException {
                 if (!response.isSuccessful()) {
-                    messageBeanList.add(new MessageBean("gpt4_mode_2 Error", false));
+                    messageBeanList.add(new MessageBean("assistant", "gpt4_mode_2 onResponse Error"));
+                    throw new IOException("Unexpected code " + response);
+                }
+
+                // 将服务器的响应显示给用户
+                final String resStr = Objects.requireNonNull(response.body()).string();
+
+                // 使用 Gson 解析 JSON 数据
+                Gson gson = new Gson();
+                Type type = new TypeToken<Map<String, Object>>() {}.getType();
+                Map<String, Object> resMap = gson.fromJson(resStr, type);
+
+                List<Map<String, String>> history = (List<Map<String, String>>) resMap.get("history");
+                String assistantContent = "";
+                for (Map<String, String> item : history) {
+                    if (item.get("role").equals("assistant")) {
+                        assistantContent = item.get("content");
+                    }
+                }
+
+                final String displayContent = assistantContent;
+                Log.e(TAG, "onResponse: " + displayContent);
+
+                handler.post(() -> {
+                    messageBeanList.add(new MessageBean("assistant", displayContent)); // bot回复在左侧
+                    chatAdapter.notifyDataSetChanged();
+                });
+            }
+        });
+    }
+
+    private void requestArgue() {  // 非第一次请求：返回绘画建议
+        String input = etInput.getText().toString();
+//        String recordText = recordView.getText().toString();
+        String recordText = "";
+        String combinedText = recordText + input;
+        Log.e(TAG, "predict: " + combinedText);
+
+        // 构建发送的数据
+        JSONObject data = new JSONObject();
+        try {
+            data.put("input", combinedText);
+            data.put("userID", 123456);
+
+            JSONArray history = new JSONArray();
+            for (MessageBean messageBean : messageBeanList) {
+                JSONObject historyItem = new JSONObject();
+                historyItem.put("role", messageBean.getRole());
+                historyItem.put("content", messageBean.getMessage());
+                history.put(historyItem);
+            }
+            data.put("history", history);
+
+            Log.e(TAG, "onCreate: data");
+        } catch (JSONException e) {
+            e.printStackTrace();
+        }
+
+        // 发送请求到服务器
+        // 不要在主线程中执行网络请求，因为这可能导致应用的用户界面无响应。OkHttp库已经在新的线程中处理了这个问题
+        post("http://166.111.139.116:22231/gpt4_predict", data.toString(), new Callback() {
+            @Override
+            public void onFailure(@NonNull Call call, @NonNull IOException e) {
+                Log.e(TAG, "onFailure: gpt4_predict");
+                e.printStackTrace();
+                handler.post(() -> {
+                    messageBeanList.add(new MessageBean("assistant", "gpt4_predict Error"));
+                    chatAdapter.notifyDataSetChanged();
+                });
+            }
+
+            @Override
+            public void onResponse(@NonNull Call call, @NonNull Response response) throws IOException {
+                if (!response.isSuccessful()) {
+                    messageBeanList.add(new MessageBean("assistant", "gpt4_mode_2 Error"));
                     throw new IOException("Unexpected code " + response);
                 }
 
@@ -502,7 +564,7 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
                 Log.e(TAG, "onResponse: " + displayContent);
 
                 handler.post(() -> {
-                    messageBeanList.add(new MessageBean(displayContent, false)); // 更新TextView的内容
+                    messageBeanList.add(new MessageBean("assistant", displayContent)); // 更新TextView的内容
                     chatAdapter.notifyDataSetChanged();
                 });
             }
@@ -561,6 +623,13 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
 
     // 发送POST请求的方法
     void post(String url, String json, Callback callback) {
+        OkHttpClient client = new OkHttpClient.Builder()
+                .connectTimeout(300, TimeUnit.SECONDS) // 连接超时时间
+                .writeTimeout(300, TimeUnit.SECONDS) // 写操作超时时间
+                .readTimeout(300, TimeUnit.SECONDS) // 读操作超时时间
+                .build();
+
+        MediaType JSON = MediaType.parse("application/json; charset=utf-8");
         RequestBody body = RequestBody.create(json, JSON);
         Request request = new Request.Builder()
                 .url(url)
@@ -1422,7 +1491,7 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
                 .url(url)
                 .build();
 
-        client.newCall(request).enqueue(new Callback() {
+        weatherClient.newCall(request).enqueue(new Callback() {
             @Override
             public void onFailure(Call call, IOException e) {
                 e.printStackTrace();

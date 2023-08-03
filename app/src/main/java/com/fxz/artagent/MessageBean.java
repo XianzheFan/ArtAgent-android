@@ -2,19 +2,23 @@ package com.fxz.artagent;
 
 public class MessageBean {
 
+    private String role;
     private String message;
-    private boolean isRightLayout;
 
-    public MessageBean(String message, boolean isRightLayout) {
+    public MessageBean(String role, String message) {
+        this.role = role;
         this.message = message;
-        this.isRightLayout = isRightLayout;
+    }
+
+    public String getRole() {
+        return role;
     }
 
     public String getMessage() {
         return message;
     }
 
-    public boolean isRightLayout() {
-        return isRightLayout;
+    public boolean isUser() {
+        return role.equals("user");
     }
 }

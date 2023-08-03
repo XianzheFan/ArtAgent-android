@@ -20,7 +20,7 @@ public class ChatAdapter extends RecyclerView.Adapter<ChatAdapter.ViewHolder> {
     @NonNull
     @Override
     public ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
-        int layoutRes = (viewType==1) ? R.layout.item_chat_message_right : R.layout.item_chat_message_left;
+        int layoutRes = (viewType == 1) ? R.layout.item_chat_message_right : R.layout.item_chat_message_left;
         View view = LayoutInflater.from(parent.getContext()).inflate(layoutRes, parent, false);
         return new ViewHolder(view);
     }
@@ -34,7 +34,7 @@ public class ChatAdapter extends RecyclerView.Adapter<ChatAdapter.ViewHolder> {
     @Override
     public int getItemViewType(int position) {
         MessageBean messageBean = messages.get(position);
-        if (messageBean.isRightLayout()) {
+        if (messageBean.isUser()) {
             return 1;
         }
         return 0;

@@ -12,7 +12,7 @@ import androidx.recyclerview.widget.RecyclerView;
 import com.bumptech.glide.Glide;
 
 import java.util.List;
-// 被删掉的Draw（原来的设定是左图右消息）
+
 public class ChatDrawAdapter extends RecyclerView.Adapter<ChatDrawAdapter.ViewHolder> {
     private List<MessageBean> messages;
 
@@ -31,8 +31,7 @@ public class ChatDrawAdapter extends RecyclerView.Adapter<ChatDrawAdapter.ViewHo
     @Override
     public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
         MessageBean message = messages.get(position);
-        boolean rig = message.isRightLayout();
-        if (rig) {
+        if (message.isUser()) {
             holder.textMessage.setText(message.getMessage());
         } else {
             Glide.with(holder.imageView)
@@ -45,7 +44,7 @@ public class ChatDrawAdapter extends RecyclerView.Adapter<ChatDrawAdapter.ViewHo
     @Override
     public int getItemViewType(int position) {
         MessageBean messageBean = messages.get(position);
-        if (messageBean.isRightLayout()) {
+        if (messageBean.isUser()) {
             return 1;
         }
         return 0;
