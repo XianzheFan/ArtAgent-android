@@ -106,8 +106,6 @@ public class MainActivity extends AppCompatActivity {
     public static final String CHANNEL_ID = "FloatingWindowServiceChannel";
     Button faceButton;
     EditText faceView;
-    Button music_button;
-//    TextView music_view;
     Button mapButton;
     EditText mapView;
 
@@ -298,33 +296,6 @@ public class MainActivity extends AppCompatActivity {
         requestPermissions();
         requestWriteSettingsPermission();
 
-//        music_button = findViewById(R.id.music_button);
-//        music_view = findViewById(R.id.music_view);
-//        final RecordAndRecognize recordAndRecognize = new RecordAndRecognize(this, handler, RequestMetaData.getHostUrl(), RequestMetaData.getJsonStringRequestData());
-//        Thread recordThread = new Thread(recordAndRecognize);
-//        music_button.setOnClickListener(v -> {
-//            if (!recordThread.isAlive()) {
-//                recordThread.start();
-//                music_button.setText("Stop Recording");
-//            } else {
-//                recordAndRecognize.stopRecording();
-//                music_button.setText("Start Recording");
-//                // Retrieve result and update UI
-//                String result = null;
-//                try {
-//                    result = recordAndRecognize.recognizeMusic();
-//                } catch (IOException | SignatureException e) {
-//                    e.printStackTrace();
-//                }
-//                music_view.setText(result);
-//            }
-//        });
-        music_button = findViewById(R.id.music_button);
-        music_button.setOnClickListener(v -> {
-            Intent intent = new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS);
-            startActivity(intent);
-        });
-
 
         faceButton = findViewById(R.id.face_button);
         faceView = findViewById(R.id.face_view);
@@ -414,7 +385,7 @@ public class MainActivity extends AppCompatActivity {
 
             // 发送请求到服务器
             // 不要在主线程中执行网络请求，因为这可能导致应用的用户界面无响应。OkHttp库已经在新的线程中处理了这个问题
-            post("http://166.111.139.118:22231/gpt4_predict", data.toString(), new Callback() {
+            post("http://166.111.139.116:22231/gpt4_predict", data.toString(), new Callback() {
                 @Override
                 public void onFailure(@NonNull Call call, @NonNull IOException e) {
                     Log.e(TAG, "onFailure: gpt4");
@@ -496,7 +467,7 @@ public class MainActivity extends AppCompatActivity {
                 e.printStackTrace();
             }
 
-            post("http://166.111.139.118:22231/gpt4_sd_draw", data.toString(), new Callback() {
+            post("http://166.111.139.116:22231/gpt4_sd_draw", data.toString(), new Callback() {
                 @Override
                 public void onFailure(@NonNull Call call, @NonNull IOException e) {
                     Log.e(TAG, "onFailure: gpt4_sd_draw");
@@ -526,7 +497,7 @@ public class MainActivity extends AppCompatActivity {
             });
         });
 
-//        promptForAccessibility();
+        promptForAccessibility();
         checkDrawOverlayPermission();
         createNotificationChannel();
     }

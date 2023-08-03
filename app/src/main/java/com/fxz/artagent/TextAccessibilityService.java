@@ -4,6 +4,7 @@ import android.accessibilityservice.AccessibilityService;
 import android.os.Build;
 import android.view.accessibility.AccessibilityEvent;
 import android.view.accessibility.AccessibilityNodeInfo;
+import android.view.accessibility.AccessibilityWindowInfo;
 import android.widget.Toast;
 import android.util.Log;
 
@@ -13,15 +14,27 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class TextAccessibilityService extends AccessibilityService {
-    private static List<String> latestTexts = new ArrayList<>();
     public static List<String> getLatestTexts() {
-        return latestTexts;
+        return self.getAllTexts();
     }
-
-//    private String latestText = "";
-//    public String getLatestText() {
-//        return latestText;
-//    }  // 如果只返回点击的部分
+    private static TextAccessibilityService self;
+    @Override
+    protected void onServiceConnected() {
+        super.onServiceConnected();
+        self = this;
+    }
+    private List<String> getAllTexts() {
+        List<String> ret = new ArrayList<>();
+        List<AccessibilityWindowInfo> windows = getWindows();
+        for (AccessibilityWindowInfo window : windows) {
+            if (window.getType() == AccessibilityWindowInfo.TYPE_APPLICATION) {
+                if (window.getRoot() != null) {
+                    ret.addAll(getAllTexts(window.getRoot()));
+                }
+            }
+        }
+        return ret;
+    }
 
     public List<String> getAllTexts(AccessibilityNodeInfo node) {
         // 所有ui部件都会展开，甚至不包括出现在用户眼前的文字
@@ -52,42 +65,9 @@ public class TextAccessibilityService extends AccessibilityService {
         textCallback = callback;
     }
 
-
     @RequiresApi(api = Build.VERSION_CODES.LOLLIPOP_MR1)
     @Override
     public void onAccessibilityEvent(AccessibilityEvent event) {
-        AccessibilityNodeInfo nodeInfo = event.getSource();
-        if (nodeInfo != null) {
-            try {
-                latestTexts = getAllTexts(nodeInfo);
-                if (textCallback != null) {
-                    textCallback.onTextReceived(latestTexts);
-                }
-
-//                latestText = (nodeInfo.getText() != null) ? nodeInfo.getText().toString() : "";  // 只返回点击的部分
-
-                CharSequence text = nodeInfo.getText();
-                CharSequence description = nodeInfo.getContentDescription();
-
-//                if (text != null) {  // 用户点击哪里就出现哪里
-//                    Log.e("AccessibilityService", "Text: " + text);
-//                }
-//
-//                if (description != null) {  // 部件名称
-//                    Log.e("AccessibilityService", "Content Description: " + description);
-//                }
-//
-//                List<String> texts = getAllTexts(nodeInfo);
-//                Log.e("AccessibilityService", "All Texts: " + texts);
-//
-//                for (String every_text : texts) {  // 分行发送
-//                    Log.e("AccessibilityService", "Every: " + every_text);
-//                }
-
-            } finally {  // 最后需要回收
-                nodeInfo.recycle();
-            }
-        }
     }
 
     @Override

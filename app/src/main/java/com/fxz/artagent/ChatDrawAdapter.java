@@ -12,7 +12,7 @@ import androidx.recyclerview.widget.RecyclerView;
 import com.bumptech.glide.Glide;
 
 import java.util.List;
-
+// 被删掉的Draw（原来的设定是左图右消息）
 public class ChatDrawAdapter extends RecyclerView.Adapter<ChatDrawAdapter.ViewHolder> {
     private List<MessageBean> messages;
 
