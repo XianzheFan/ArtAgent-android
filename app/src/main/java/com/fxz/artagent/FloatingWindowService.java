@@ -208,6 +208,8 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
                 fl1.removeAllViews();
                 fl1.addView(getViewChat(), new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT));
             }
+            messageBeanList.add(new MessageBean("user", "Please generate an image based on our previous art discussion."));
+            chatAdapter.notifyDataSetChanged();
             requestImage();
         });
 
@@ -277,10 +279,14 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
                 fl1.addView(getViewChat(), new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT));
             }
             messageBeanList.add(new MessageBean("user", etInput.getText().toString()));
-
             chatAdapter.notifyDataSetChanged();
-            requestTopic();  // 请求完再清空etInput
-            etInput.setText("");  // 第一次发送指令：返回推荐的主题
+            if(messageBeanList.size() == 1) {
+                requestTopic();  // 第一次发送指令：返回推荐的主题
+            } else {
+                requestArgue();
+            }
+            etInput.setText("");  // 请求完再清空etInput
+            Log.e(TAG, String.valueOf(messageBeanList.size()));
         });
 
         chatAdapter = new ChatAdapter(messageBeanList);
@@ -342,7 +348,7 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
                 }
                 if (llTool.getVisibility() == View.VISIBLE) {
                     animateCollapseV(llTool);
-                    messageBeanList.clear();
+//                    messageBeanList.clear();
                 } else {
                     if (fl1.getVisibility() == View.VISIBLE) {
                         fl1.setVisibility(View.GONE);
@@ -376,6 +382,7 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
                 history.put(historyItem);
             }
             data.put("history", history);
+            Log.e(TAG, String.valueOf(data));
         } catch (JSONException e) {
             e.printStackTrace();
         }
@@ -383,10 +390,10 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
         post("http://166.111.139.116:22231/gpt4_sd_draw", data.toString(), new Callback() {
             @Override
             public void onFailure(@NonNull Call call, @NonNull IOException e) {
-                Log.e(TAG, "onFailure: gpt4_sd_draw");
+                Log.e(TAG, "onFailure: gpt4_sd_draw", e);
                 e.printStackTrace();
                 handler.post(() -> {
-                    messageBeanList.add(new MessageBean("assistant","https://aff.bstatic.com/images/hotel/840x460/119/119733201.jpg"));
+                    messageBeanList.add(new MessageBean("assistant","gpt4_sd_draw error"));
                     chatAdapter.notifyDataSetChanged();
                 });
             }
@@ -401,15 +408,38 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
 
                 // 使用 Gson 解析 JSON 数据
                 Gson gson = new Gson();
-                Type type = new TypeToken<Map<String, Object>>() {
-                }.getType();
+                Type type = new TypeToken<Map<String, Object>>() {}.getType();
                 Map<String, Object> resMap = gson.fromJson(resStr, type);
 
-                String imageUrl = (String) resMap.get("image_url");
 
-                // 使用Glide或者其他库从imageUrl加载图像，并显示在drawView中
+                List<Map<String, Object>> history = (List<Map<String, Object>>) resMap.get("history");
+                if (history != null && !history.isEmpty()) {
+                    Map<String, Object> lastAssistantMessage = null;
+
+                    // 逆向遍历历史记录，寻找最后一条"assistant"的消息
+                    for (int i = history.size() - 1; i >= 0; i--) {
+                        Map<String, Object> record = history.get(i);
+                        if ("assistant".equals(record.get("role"))) {
+                            lastAssistantMessage = record;
+                            break;
+                        }
+                    }
+
+                    // 如果找到了
+                    if (lastAssistantMessage != null) {
+                        String lastAssistantContent = (String) lastAssistantMessage.get("content");
+                        handler.post(() -> {
+                            messageBeanList.add(new MessageBean("assistant", lastAssistantContent));
+                            chatAdapter.notifyDataSetChanged();
+                        });
+                    }
+                }
+
+
+                String imageUrl = (String) resMap.get("image_url");
+                // 使用Glide或者其他库从imageUrl加载图像
                 handler.post(() -> {
-                    messageBeanList.add(new MessageBean("assistant","https://aff.bstatic.com/images/hotel/840x460/119/119733201.jpg"));
+                    messageBeanList.add(new MessageBean("assistant", imageUrl, true));
                     chatAdapter.notifyDataSetChanged();
                 });
             }
@@ -418,13 +448,11 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
 
     private void requestTopic() {  // 第一次请求：返回推荐的主题
         String input = etInput.getText().toString();
-//        String recordText = recordView.getText().toString();
 //        String faceText = faceView.getText().toString();
 //        String mapText = mapView.getText().toString();
 //        String writeText = writeView.getText().toString();
 //        String weatherText = weatherView.getText().toString();
 //        String musicText = musicView.getText().toString();
-        String recordText = "";
         String faceText = "";
         String mapText = "";
         String writeText = "";
@@ -432,7 +460,7 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
         String musicText = "";
 
         //合并所有视图中的文本
-        String combinedText = "Location:["+mapText+"],Phone-Content:["+writeText+"],Facial Expression:["+faceText+"],Weather:["+weatherText+"],Music:["+musicText+"],User command:["+recordText+input+"]";
+        String combinedText = "Location:["+mapText+"],Phone-Content:["+writeText+"],Facial Expression:["+faceText+"],Weather:["+weatherText+"],Music:["+musicText+"],User command:["+input+"]";
         Log.e(TAG, "predict: " + combinedText);
 
         // 构建发送的数据
@@ -497,10 +525,7 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
     }
 
     private void requestArgue() {  // 非第一次请求：返回绘画建议
-        String input = etInput.getText().toString();
-//        String recordText = recordView.getText().toString();
-        String recordText = "";
-        String combinedText = recordText + input;
+        String combinedText = etInput.getText().toString();
         Log.e(TAG, "predict: " + combinedText);
 
         // 构建发送的数据
@@ -518,7 +543,7 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
             }
             data.put("history", history);
 
-            Log.e(TAG, "onCreate: data");
+            Log.e(TAG, String.valueOf(history));
         } catch (JSONException e) {
             e.printStackTrace();
         }
@@ -624,9 +649,9 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
     // 发送POST请求的方法
     void post(String url, String json, Callback callback) {
         OkHttpClient client = new OkHttpClient.Builder()
-                .connectTimeout(300, TimeUnit.SECONDS) // 连接超时时间
-                .writeTimeout(300, TimeUnit.SECONDS) // 写操作超时时间
-                .readTimeout(300, TimeUnit.SECONDS) // 读操作超时时间
+                .connectTimeout(600, TimeUnit.SECONDS) // 连接超时时间
+                .writeTimeout(600, TimeUnit.SECONDS) // 写操作超时时间
+                .readTimeout(600, TimeUnit.SECONDS) // 读操作超时时间
                 .build();
 
         MediaType JSON = MediaType.parse("application/json; charset=utf-8");
@@ -1382,7 +1407,7 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
         if (isOtherLayoutVisible) {
             if (llTool.getVisibility() == View.VISIBLE) {
                 animateCollapseV(llTool);
-                messageBeanList.clear();
+//                messageBeanList.clear();
             }
             // 隐藏其他布局
             animateCollapse(llCon1);
