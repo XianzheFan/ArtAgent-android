@@ -22,8 +22,6 @@ camera拍的照片发到聊天框
 
 加一个 new topic 按钮（在不清除聊天记录的情况下消除 Agent 记忆）+ clear 按钮（清除聊天记录）
 
-推荐主题
-
-![Untitled](https://s3-us-west-2.amazonaws.com/secure.notion-static.com/cbc9800b-aee2-4c55-a362-1e00ea6d3216/Untitled.png)
+推荐主题（类似于gpt最新的界面）
 
 无法在其他应用中使用键盘（WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY的性质，暂时没法改）
