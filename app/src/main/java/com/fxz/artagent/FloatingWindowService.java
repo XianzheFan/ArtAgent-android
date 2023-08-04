@@ -236,7 +236,6 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
             tvTitle.setText("Content");
             fl1.removeAllViews();
             fl1.addView(getView3(), new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT));
-
         });
         tv4.setOnClickListener(view -> {
             ll0.setVisibility(View.GONE);
@@ -273,7 +272,7 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
             if (fl1.getVisibility() == View.GONE) {
                 ll0.setVisibility(View.GONE);
                 fl1.setVisibility(View.VISIBLE);
-                tvTitle.setText("Chat");
+                tvTitle.setText("Chat with Context-Aware ArtAgent");
                 fl1.removeAllViews();
                 fl1.addView(getViewChat(), new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT));
             }
@@ -302,8 +301,14 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
                         mLocationClient.setLocationListener(amapLocation -> {
                             if (amapLocation != null && amapLocation.getErrorCode() == 0) {
                                 String address = amapLocation.getAddress();
+
+                                getLatestTexts();
+                                // 从SharedPreferences中获取文本
+                                SharedPreferences prefs = getSharedPreferences(PREFERENCES_NAME, MODE_PRIVATE);
+                                String screenText = prefs.getString(PREFERENCES_KEY, "");
+
                                 // 所有数据都已经获取到，调用 requestTopic
-                                requestTopic(userInput, weatherText, address);
+                                requestTopic(userInput, weatherText, address, screenText);
                             } else {
                                 Log.e("AmapError", "location Error, ErrCode:" + amapLocation.getErrorCode() + ", errInfo:" + amapLocation.getErrorInfo());
                             }
@@ -481,12 +486,10 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
         });
     }
 
-    private void requestTopic(String input, String weatherText, String mapText) {  // 第一次请求：返回推荐的主题
+    private void requestTopic(String input, String weatherText, String mapText, String writeText) {  // 第一次请求：返回推荐的主题
 //        String faceText = faceView.getText().toString();
-//        String writeText = writeView.getText().toString();
 //        String musicText = musicView.getText().toString();
         String faceText = "";
-        String writeText = "";
         String musicText = "";
 
         //合并所有视图中的文本
@@ -1519,7 +1522,7 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
         List<String> latestTexts = TextAccessibilityService.getLatestTexts();
         Log.e("Float", "AllText: " + latestTexts);
         saveTextsToPreferences(latestTexts);
-        new Handler(Looper.getMainLooper()).postDelayed(() -> Toast.makeText(FloatingWindowService.this, "您生成的图片将保存至相册", Toast.LENGTH_SHORT).show(), 0);
+        new Handler(Looper.getMainLooper()).postDelayed(() -> Toast.makeText(FloatingWindowService.this, "Screen Content Saved", Toast.LENGTH_SHORT).show(), 0);
     }
 
     // 将最近获取的文本保存到 SharedPreferences
