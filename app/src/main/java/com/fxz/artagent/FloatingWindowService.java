@@ -132,7 +132,7 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
     private OkHttpClient buildHttpClient() {  // 天气client
         return new OkHttpClient.Builder()
                 .retryOnConnectionFailure(true)
-                .connectTimeout(30, TimeUnit.SECONDS)
+                .connectTimeout(600, TimeUnit.SECONDS)
                 .build();
     }
 
@@ -214,7 +214,6 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
         });
 
         tv1.setOnClickListener(view -> {
-            fetchWeatherData();
             ll0.setVisibility(View.GONE);
             fl1.setVisibility(View.VISIBLE);
             tvTitle.setText("Location");
@@ -278,13 +277,48 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
                 fl1.removeAllViews();
                 fl1.addView(getViewChat(), new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT));
             }
-            messageBeanList.add(new MessageBean("user", etInput.getText().toString()));
+            String userInput = etInput.getText().toString();
+            messageBeanList.add(new MessageBean("user", userInput));
             chatAdapter.notifyDataSetChanged();
-            if(messageBeanList.size() == 1) {
-                requestTopic();  // 第一次发送指令：返回推荐的主题
+
+            if (messageBeanList.size() == 1) {
+                AMapLocationClient.updatePrivacyShow(getApplicationContext(), true, true);
+                AMapLocationClient.updatePrivacyAgree(getApplicationContext(), true);
+                try {
+                    mLocationClient = new AMapLocationClient(getApplicationContext());
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+                AMapLocationClientOption mLocationOption = new AMapLocationClientOption();
+                mLocationOption.setGeoLanguage(AMapLocationClientOption.GeoLanguage.EN);  // 设置为英文
+                mLocationOption.setLocationMode(AMapLocationClientOption.AMapLocationMode.Hight_Accuracy);
+                mLocationOption.setOnceLocation(true);
+                mLocationOption.setOnceLocationLatest(true);
+                mLocationOption.setNeedAddress(true);
+                mLocationClient.setLocationOption(mLocationOption);
+                fetchWeatherData(new WeatherTextCallback() {
+                    @Override
+                    public void onWeatherTextReceived(String weatherText) {
+                        mLocationClient.setLocationListener(amapLocation -> {
+                            if (amapLocation != null && amapLocation.getErrorCode() == 0) {
+                                String address = amapLocation.getAddress();
+                                // 所有数据都已经获取到，调用 requestTopic
+                                requestTopic(userInput, weatherText, address);
+                            } else {
+                                Log.e("AmapError", "location Error, ErrCode:" + amapLocation.getErrorCode() + ", errInfo:" + amapLocation.getErrorInfo());
+                            }
+                        });
+                        mLocationClient.startLocation();
+                    }
+                    @Override
+                    public void onError(Exception e) {
+                        Log.e("WeatherError", "Failed to get weather data", e);
+                    }
+                });
             } else {
                 requestArgue();
             }
+
             etInput.setText("");  // 请求完再清空etInput
             Log.e(TAG, String.valueOf(messageBeanList.size()));
         });
@@ -437,6 +471,7 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
 
 
                 String imageUrl = (String) resMap.get("image_url");
+                Log.e(TAG, imageUrl);
                 // 使用Glide或者其他库从imageUrl加载图像
                 handler.post(() -> {
                     messageBeanList.add(new MessageBean("assistant", imageUrl, true));
@@ -446,17 +481,12 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
         });
     }
 
-    private void requestTopic() {  // 第一次请求：返回推荐的主题
-        String input = etInput.getText().toString();
+    private void requestTopic(String input, String weatherText, String mapText) {  // 第一次请求：返回推荐的主题
 //        String faceText = faceView.getText().toString();
-//        String mapText = mapView.getText().toString();
 //        String writeText = writeView.getText().toString();
-//        String weatherText = weatherView.getText().toString();
 //        String musicText = musicView.getText().toString();
         String faceText = "";
-        String mapText = "";
         String writeText = "";
-        String weatherText = "";
         String musicText = "";
 
         //合并所有视图中的文本
@@ -652,6 +682,7 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
                 .connectTimeout(600, TimeUnit.SECONDS) // 连接超时时间
                 .writeTimeout(600, TimeUnit.SECONDS) // 写操作超时时间
                 .readTimeout(600, TimeUnit.SECONDS) // 读操作超时时间
+                .callTimeout(1200, TimeUnit.SECONDS) // 增加全局调用超时
                 .build();
 
         MediaType JSON = MediaType.parse("application/json; charset=utf-8");
@@ -762,15 +793,12 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
                                     int len = 0;
                                     if (buffer == null) {
                                         status = StatusLastFrame;
-
-                                        startRecord = false;  // !!!
+                                        startRecord = false;
                                         if (record != null) {
                                             record.stop();
                                             record.release();
                                             record = null;
                                         }
-
-
                                         Log.e(TAG, "last");
                                     } else {
                                         len = buffer.length;
@@ -823,16 +851,12 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
                                             data2.addProperty("encoding", "raw");
                                             frame2.add("data", data2);
                                             webSocket.send(frame2.toString());
-
-
-                                            startRecord = false;  // !!!
+                                            startRecord = false;
                                             if (record != null) {
                                                 record.stop();
                                                 record.release();
                                                 record = null;
                                             }
-
-
                                             break end;
                                     }
                                     Thread.sleep(intervel); //模拟音频采样延时
@@ -1168,7 +1192,7 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
             File imageFile = new File(imageDirectory, "tempImage.jpg");
             Bitmap bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.length);
 
-            // 将图片数据保存到文件
+            // 将图片数据保存到文件，并进行情绪识别
             try (OutputStream outputStream = new FileOutputStream(imageFile)) {
                 Log.e(TAG, "try");
                 outputStream.write(bytes);
@@ -1510,7 +1534,7 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
     public void onTextReceived(List<String> allText) {
     }
 
-    private void fetchWeatherData() {
+    private void fetchWeatherData(WeatherTextCallback callback) {
         String url = "https://devapi.qweather.com/v7/grid-weather/now?location=116.41,39.92&key=2d164f0582c247b696e9c0aa6302d874";
         final Request request = new Request.Builder()
                 .url(url)
@@ -1519,7 +1543,7 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
         weatherClient.newCall(request).enqueue(new Callback() {
             @Override
             public void onFailure(Call call, IOException e) {
-                e.printStackTrace();
+                callback.onError(e);
             }
 
             @Override
@@ -1527,18 +1551,20 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
                 if (!response.isSuccessful()) {
                     throw new IOException("Unexpected code " + response);
                 } else {
-                    // 注意，response.body().string() 只能调用一次，如果你想再次使用这个String，需要先保存起来
                     String responseData = response.body().string();
-                    // 这里是主线程，你可以进行UI操作
                     try {
                         JSONObject jsonObject = new JSONObject(responseData);
                         JSONObject nowObject = jsonObject.getJSONObject("now");
                         String text = nowObject.getString("text");
 
-                        // 打印到Log
                         Log.e("WeatherAPI", "Weather text: " + text);
+
+                        // 当获取到天气文本后，调用回调
+                        if (callback != null) {
+                            callback.onWeatherTextReceived(text);
+                        }
                     } catch (JSONException e) {
-                        e.printStackTrace();
+                        callback.onError(e);
                     }
                 }
             }
