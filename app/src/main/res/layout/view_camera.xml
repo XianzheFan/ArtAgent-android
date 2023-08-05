@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="500dp">
+
+    <RelativeLayout
+        android:id="@+id/rl_camera"
+        android:layout_width="match_parent"
+        android:layout_height="440dp">
+
+        <TextureView
+            android:id="@+id/textureView"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"/>
+
+        <ImageView
+            android:id="@+id/ellipse_5"
+            android:layout_width="45dp"
+            android:layout_height="45dp"
+            android:layout_alignParentBottom="true"
+            android:layout_centerHorizontal="true"
+            android:layout_marginBottom="5dp"
+            android:src="@drawable/shape_ovel" />
+
+        <ImageView
+            android:id="@+id/iv_take"
+            android:layout_width="39dp"
+            android:layout_height="39dp"
+            android:layout_alignTop="@id/ellipse_5"
+            android:layout_alignStart="@id/ellipse_5"
+            android:layout_marginTop="3dp"
+            android:layout_marginStart="3dp"
+            android:src="@drawable/ellipse_6" />
+
+        <ImageView
+            android:id="@+id/iv_switch_camera"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_alignParentBottom="true"
+            android:layout_alignParentEnd="true"
+            android:layout_marginBottom="5dp"
+            android:layout_marginEnd="5dp"
+            android:src="@drawable/shape_ovel" />
+
+        <ImageView
+            android:id="@+id/iv_return"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_alignTop="@id/iv_switch_camera"
+            android:layout_alignStart="@id/iv_switch_camera"
+            android:layout_marginEnd="5dp"
+            android:src="@drawable/reverse_camera" />
+
+    </RelativeLayout>
+
+    <TextView
+        android:id="@+id/tv_emotion"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:gravity="center"
+        android:visibility="visible" />
+</FrameLayout>
