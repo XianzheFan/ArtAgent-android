@@ -2,13 +2,15 @@
 An Art Agent based on GPT4, Stable Diffusion, and finetuned VisualGLM-6B
 
 # TODO
-camera拍的照片发到聊天框+edit image一系列操作
+edit image一系列操作
 
-语音识别之后点击发送，聊天框不会立马出来
+从相册中选择图片发到聊天框里时，MainActivity的界面老是弹出来
+
+>1.初始界面是聊天框 
+
+>2.在chat页面的左上角加一个页面跳转至工具栏的按钮，在工具栏左上角加一个页面跳转至聊天框的按钮，左下角的按钮只用来收起页面（单击为缩成一横条，双击为缩成一个小圆）
 
 如何把听歌识曲和情绪识别与ivsend.click绑定
-
-点击返回键，聊天记录就难找回来了
 
 无障碍识别的问题：公众号文章有时无法识别
 
