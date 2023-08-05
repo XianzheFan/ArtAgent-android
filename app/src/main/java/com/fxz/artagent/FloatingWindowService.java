@@ -26,6 +26,7 @@ import android.hardware.camera2.CameraCharacteristics;
 import android.hardware.camera2.CameraDevice;
 import android.hardware.camera2.CameraManager;
 import android.hardware.camera2.CaptureRequest;
+import android.hardware.camera2.TotalCaptureResult;
 import android.hardware.camera2.params.StreamConfigurationMap;
 import android.media.AudioFormat;
 import android.media.AudioRecord;
@@ -244,7 +245,7 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
             fl1.setVisibility(View.VISIBLE);
             tvTitle.setText("Camera");
             fl1.removeAllViews();
-            fl1.addView(getView4(), new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT));
+            fl1.addView(getView6(), new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT));
         });
         tv5.setOnClickListener(view -> {
             ll0.setVisibility(View.GONE);
@@ -655,7 +656,6 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
         } catch (JSONException e) {
             e.printStackTrace();
         }
-
 
         // Save the bitmap to a file
         File imageFile = new File(getExternalFilesDir(Environment.DIRECTORY_PICTURES), "tempImage.jpg");
@@ -1126,7 +1126,7 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
 
     TextView tvText;
 
-    private View getView2() {
+    private View getView2() {  // 简单的文本框
         View view = LayoutInflater.from(this).inflate(R.layout.view_emotion2, null);
         tvText = view.findViewById(R.id.tv_text);
         return view;
@@ -1154,7 +1154,7 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
     RelativeLayout rlCamara;
     private boolean usingFrontCamera = true;
 
-    private void switchCamera() {
+    private void switchCamera(boolean isEmotion) {
         if (cameraDevice != null) {
             cameraDevice.close();
         }
@@ -1184,7 +1184,7 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
                         public void onOpened(@NonNull CameraDevice camera) {
                             cameraDevice = camera;
                             // Now you have the camera device, and you can start camera preview.
-                            startCameraPreview();
+                            startCameraPreview(isEmotion);
                         }
 
                         @Override
@@ -1206,44 +1206,31 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
         }
     }
 
-    private View getView4() {
+    private View getView4() { // emotion
         View view = LayoutInflater.from(this).inflate(R.layout.view_camera, null);
         tvTake = view.findViewById(R.id.tv_emotion);
         rlCamara = view.findViewById(R.id.rl_camera);
-        view.findViewById(R.id.iv_switch_camera).setOnClickListener(v -> switchCamera());
-        view.findViewById(R.id.iv_take).setOnClickListener(v -> {
-            final CaptureRequest.Builder captureRequestBuilder;
-            try {
-                captureRequestBuilder = cameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_STILL_CAPTURE);
-
-                captureRequestBuilder.addTarget(imageReader.getSurface());
-                int rotation = windowManager.getDefaultDisplay().getRotation();
-                CameraCharacteristics c = cameraManager.getCameraCharacteristics(cameraDevice.getId());
-                captureRequestBuilder.set(CaptureRequest.JPEG_ORIENTATION, getJpegOrientation(c, rotation));
-                List<Surface> surfaces = new ArrayList<>();
-                surfaces.add(imageReader.getSurface());
-
-                // Create a CameraCaptureSession for camera preview
-                cameraDevice.createCaptureSession(surfaces, new CameraCaptureSession.StateCallback() {
-                    @Override
-                    public void onConfigured(@NonNull CameraCaptureSession cameraCaptureSession) {
-                        try {
-                            cameraCaptureSession.capture(captureRequestBuilder.build(), null, null);
-                        } catch (CameraAccessException e) {
-                            e.printStackTrace();
-                        }
-                    }
-
-                    @Override
-                    public void onConfigureFailed(@NonNull CameraCaptureSession cameraCaptureSession) {
-                    }
-                }, null);
-            } catch (CameraAccessException e) {
-                e.printStackTrace();
-            }
-        });
+        view.findViewById(R.id.iv_switch_camera).setOnClickListener(v -> switchCamera(true));
+        view.findViewById(R.id.iv_take).setOnClickListener(v -> captureImage());
         textureView = view.findViewById(R.id.textureView);
 
+        setupCamera(true);
+        return view;
+    }
+
+    private View getView6() { // camera
+        View view = LayoutInflater.from(this).inflate(R.layout.view_camera, null);
+        tvTake = view.findViewById(R.id.tv_emotion);
+        rlCamara = view.findViewById(R.id.rl_camera);
+        view.findViewById(R.id.iv_switch_camera).setOnClickListener(v -> switchCamera(false));
+        view.findViewById(R.id.iv_take).setOnClickListener(v -> captureImage());
+        textureView = view.findViewById(R.id.textureView);
+
+        setupCamera(false);
+        return view;
+    }
+
+    private void setupCamera(boolean isEmotion) {
         try {
             // Get the front camera ID
             if (frontCameraId == null) {
@@ -1260,29 +1247,23 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
                     e.printStackTrace();
                 }
             }
-
             // Check if the front camera is available
             if (frontCameraId == null) {
                 Log.e("CameraActivity", "Front camera not available.");
                 frontCameraId = cameraManager.getCameraIdList()[0];
             }
-
-//            String cameraId = cameraManager.getCameraIdList()[0]; // Use the first camera
             if (ActivityCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
                 cameraManager.openCamera(frontCameraId, new CameraDevice.StateCallback() {
                     @Override
                     public void onOpened(@NonNull CameraDevice camera) {
                         cameraDevice = camera;
-                        // Now you have the camera device, and you can start camera preview.
-                        startCameraPreview();
+                        startCameraPreview(isEmotion);
                     }
-
                     @Override
                     public void onDisconnected(@NonNull CameraDevice camera) {
                         cameraDevice.close();
                         cameraDevice = null;
                     }
-
                     @Override
                     public void onError(@NonNull CameraDevice camera, int error) {
                         cameraDevice.close();
@@ -1293,10 +1274,40 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
         } catch (CameraAccessException e) {
             e.printStackTrace();
         }
-        return view;
     }
 
-    private void saveImage(Image image) {
+    private void captureImage() {
+        final CaptureRequest.Builder captureRequestBuilder;
+        try {
+            captureRequestBuilder = cameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_STILL_CAPTURE);
+
+            captureRequestBuilder.addTarget(imageReader.getSurface());
+            int rotation = windowManager.getDefaultDisplay().getRotation();
+            CameraCharacteristics c = cameraManager.getCameraCharacteristics(cameraDevice.getId());
+            captureRequestBuilder.set(CaptureRequest.JPEG_ORIENTATION, getJpegOrientation(c, rotation));
+            List<Surface> surfaces = new ArrayList<>();
+            surfaces.add(imageReader.getSurface());
+
+            cameraDevice.createCaptureSession(surfaces, new CameraCaptureSession.StateCallback() {
+                @Override
+                public void onConfigured(@NonNull CameraCaptureSession cameraCaptureSession) {
+                    try {
+                        cameraCaptureSession.capture(captureRequestBuilder.build(), null, null);
+                    } catch (CameraAccessException e) {
+                        e.printStackTrace();
+                    }
+                }
+                @Override
+                public void onConfigureFailed(@NonNull CameraCaptureSession cameraCaptureSession) {
+                }
+            }, null);
+        } catch (CameraAccessException e) {
+            e.printStackTrace();
+        }
+    }
+
+
+    private void saveImage(Image image, boolean isEmotion) {
         // 获取图片数据
         ByteBuffer buffer = image.getPlanes()[0].getBuffer();
         Log.e(TAG, String.valueOf(buffer.getLong()));
@@ -1310,16 +1321,26 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
             File imageFile = new File(imageDirectory, "tempImage.jpg");
             Bitmap bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.length);  // 写满了，非空
 
-            // 将图片数据保存到文件，并进行情绪识别
+            // 将图片数据保存到文件，并进行情绪识别/传入聊天框
             try (OutputStream outputStream = new FileOutputStream(imageFile)) {
-                Log.e(TAG, "try");
                 outputStream.write(bytes);
-                Log.e("CameraActivity", "Image saved: " + imageFile.getAbsolutePath());
                 rlCamara.setVisibility(View.GONE);
-                tvTake.setVisibility(View.VISIBLE);
-                tvTake.setText("Processing...");
-                Log.e(TAG, "Processing");
-                new PhotoUploader(compress(bitmap, 80), result1 -> tvTake.setText(result1), getApplicationContext()).execute();
+
+                if (isEmotion) {
+                    tvTake.setVisibility(View.VISIBLE);
+                    tvTake.setText("Processing...");
+                    Log.e(TAG, "Processing");
+                    new PhotoUploader(compress(bitmap, 80), result1 -> tvTake.setText(result1), getApplicationContext()).execute();
+                } else {
+                    ll0.setVisibility(View.GONE);
+                    fl1.setVisibility(View.VISIBLE);
+                    tvTitle.setText("Chat with Context-Aware ArtAgent");
+                    fl1.removeAllViews();
+                    fl1.addView(getViewChat(), new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT));
+                    messageBeanList.add(new MessageBean("user", imageFile.getAbsolutePath(), true));
+                    chatAdapter.notifyDataSetChanged();
+                    Log.e("CameraActivity", "Image saved");
+                }
             } catch (IOException e) {
                 Log.e(TAG, "error file");
                 e.printStackTrace();
@@ -1329,6 +1350,7 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
             saveImageToGallerySWN(getApplicationContext(), bitmap);
         }
     }
+
 
     public static Bitmap compress(Bitmap bitmap, int quality){
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
@@ -1435,7 +1457,7 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
         return jpegOrientation;
     }
 
-    private void startCameraPreview() {
+    private void startCameraPreview(boolean isEmotion) {
         if (cameraDevice == null || !textureView.isAvailable()) {
             return;
         }
@@ -1463,7 +1485,7 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
                 Log.d(TAG, "onImageAvailable: ");
                 Image image = reader.acquireLatestImage();
                 if (image != null) {
-                    saveImage(image);
+                    saveImage(image, isEmotion);
                     image.close();
                 }
             }, null);
