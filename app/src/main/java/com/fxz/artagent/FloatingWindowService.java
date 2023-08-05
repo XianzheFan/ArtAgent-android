@@ -91,6 +91,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.Date;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -101,6 +102,7 @@ import java.util.concurrent.TimeUnit;
 import okhttp3.Call;
 import okhttp3.Callback;
 import okhttp3.MediaType;
+import okhttp3.MultipartBody;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.RequestBody;
@@ -410,8 +412,8 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
         try {
             data.put("userID", 123456);
             data.put("cnt", 0);
-            data.put("width", 768);
-            data.put("height", 768);
+            data.put("width", 200);
+            data.put("height", 200);
 
             JSONArray history = new JSONArray();
             for (MessageBean messageBean : messageBeanList) {
@@ -451,6 +453,15 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
                 Map<String, Object> resMap = gson.fromJson(resStr, type);
 
 
+                String imageUrl = (String) resMap.get("image_url");
+                Log.e(TAG, imageUrl);
+                // 使用Glide或者其他库从imageUrl加载图像
+                handler.post(() -> {
+                    messageBeanList.add(new MessageBean("assistant", imageUrl, true));
+                    chatAdapter.notifyDataSetChanged();
+                });
+
+
                 List<Map<String, Object>> history = (List<Map<String, Object>>) resMap.get("history");
                 if (history != null && !history.isEmpty()) {
                     Map<String, Object> lastAssistantMessage = null;
@@ -473,15 +484,6 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
                         });
                     }
                 }
-
-
-                String imageUrl = (String) resMap.get("image_url");
-                Log.e(TAG, imageUrl);
-                // 使用Glide或者其他库从imageUrl加载图像
-                handler.post(() -> {
-                    messageBeanList.add(new MessageBean("assistant", imageUrl, true));
-                    chatAdapter.notifyDataSetChanged();
-                });
             }
         });
     }
@@ -629,6 +631,120 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
         });
     }
 
+    private void imageEditTopic(String input, String weatherText, String mapText, Bitmap bitmap) {
+        // 上传图片给建议，和屏幕文本无关，但为了不重写prompt，直接令其为空
+//        String faceText = faceView.getText().toString();
+//        String musicText = musicView.getText().toString();
+        String faceText = "";
+        String musicText = "";
+
+        //合并所有视图中的文本
+        String combinedText = "Location:["+mapText+"],Phone-Content:[],Facial Expression:["+faceText+"],Weather:["+weatherText+"],Music:["+musicText+"],User command:["+input+"]";
+        Log.e(TAG, "predict: " + combinedText);
+
+        // 构建发送的数据
+        JSONObject data = new JSONObject();
+        try {
+            data.put("input", combinedText);
+            JSONArray history = new JSONArray();
+            data.put("history", history);
+            data.put("userID", 123456);
+            data.put("width", 512);
+            data.put("height", 512);
+            Log.e(TAG, "onCreate: data");
+        } catch (JSONException e) {
+            e.printStackTrace();
+        }
+
+
+        // Save the bitmap to a file
+        File imageFile = new File(getExternalFilesDir(Environment.DIRECTORY_PICTURES), "tempImage.jpg");
+        try (FileOutputStream out = new FileOutputStream(imageFile)) {
+            bitmap.compress(Bitmap.CompressFormat.JPEG, 80, out);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        RequestBody requestFile = RequestBody.create(imageFile, MediaType.parse("image/jpeg"));
+        MultipartBody.Part filePart = MultipartBody.Part.createFormData("image", imageFile.getName(), requestFile);
+        // Prepare the other parts
+        List<MultipartBody.Part> otherParts = new ArrayList<>();
+        Iterator<String> keys = data.keys();
+        while (keys.hasNext()) {
+            String key = keys.next();
+            try {
+                String value = data.getString(key);
+                RequestBody requestBody = RequestBody.create(value, MediaType.parse("text/plain"));
+                MultipartBody.Part part = MultipartBody.Part.createFormData(key, null, requestBody);
+                otherParts.add(part);
+            } catch (JSONException e) {
+                e.printStackTrace();
+            }
+        }
+        // Create the final multipart request
+        MultipartBody.Builder multipartBodyBuilder = new MultipartBody.Builder()
+                .setType(MultipartBody.FORM)
+                .addPart(filePart);
+        for (MultipartBody.Part part : otherParts) {
+            multipartBodyBuilder.addPart(part);
+        }
+        MultipartBody multipartBody = multipartBodyBuilder.build();
+        Request request = new Request.Builder()
+                .url("http://166.111.139.116:22231/image_edit_topic")
+                .post(multipartBody)
+                .build();
+
+        OkHttpClient okHttpClient = new OkHttpClient.Builder()
+                .connectTimeout(600, TimeUnit.SECONDS) // 连接超时时间
+                .writeTimeout(600, TimeUnit.SECONDS) // 写操作超时时间
+                .readTimeout(600, TimeUnit.SECONDS) // 读操作超时时间
+                .callTimeout(1200, TimeUnit.SECONDS) // 增加全局调用超时
+                .build();
+        okHttpClient.newCall(request).enqueue(new Callback() {
+        // 不要在主线程中执行网络请求，因为这可能导致应用的用户界面无响应。OkHttp库已经在新的线程中处理了这个问题
+            @Override
+            public void onFailure(@NonNull Call call, @NonNull IOException e) {
+                Log.e(TAG, "onFailure: image_edit_topic");
+                e.printStackTrace();
+                handler.post(() -> {
+                    messageBeanList.add(new MessageBean("assistant", "image_edit_topic onFailure Error"));
+                    chatAdapter.notifyDataSetChanged();
+                });
+            }
+
+            @Override
+            public void onResponse(@NonNull Call call, @NonNull Response response) throws IOException {
+                if (!response.isSuccessful()) {
+                    messageBeanList.add(new MessageBean("assistant", "image_edit_topic onResponse Error"));
+                    throw new IOException("Unexpected code " + response);
+                }
+
+                // 将服务器的响应显示给用户
+                final String resStr = Objects.requireNonNull(response.body()).string();
+
+                // 使用 Gson 解析 JSON 数据
+                Gson gson = new Gson();
+                Type type = new TypeToken<Map<String, Object>>() {}.getType();
+                Map<String, Object> resMap = gson.fromJson(resStr, type);
+
+                List<Map<String, String>> history = (List<Map<String, String>>) resMap.get("history");
+                String assistantContent = "";
+                for (Map<String, String> item : history) {
+                    if (item.get("role").equals("assistant")) {
+                        assistantContent = item.get("content");
+                    }
+                }
+
+                final String displayContent = assistantContent;
+                Log.e(TAG, "onResponse: " + displayContent);
+
+                handler.post(() -> {
+                    messageBeanList.add(new MessageBean("assistant", displayContent)); // 对图片的评价和修改建议
+                    chatAdapter.notifyDataSetChanged();
+                });
+            }
+        });
+    }
+
     private View getViewChat() {
         View view = LayoutInflater.from(this).inflate(R.layout.layout_chat, null);
         RecyclerView recyclerView = view.findViewById(R.id.rv_list);
@@ -761,7 +877,7 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
             e.printStackTrace();
         }
         OkHttpClient client = new OkHttpClient.Builder()
-                .readTimeout(10, TimeUnit.SECONDS)
+                .readTimeout(20, TimeUnit.SECONDS)
                 .pingInterval(20, TimeUnit.SECONDS)  // 设置超时时间
                 .build();
         String url = Objects.requireNonNull(authUrl).replace("http://", "ws://").replace("https://", "wss://");
@@ -1120,7 +1236,6 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
 
                     @Override
                     public void onConfigureFailed(@NonNull CameraCaptureSession cameraCaptureSession) {
-
                     }
                 }, null);
             } catch (CameraAccessException e) {
@@ -1193,7 +1308,7 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
         File imageDirectory = getApplicationContext().getExternalFilesDir(Environment.DIRECTORY_PICTURES);
         if (imageDirectory != null) {
             File imageFile = new File(imageDirectory, "tempImage.jpg");
-            Bitmap bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.length);
+            Bitmap bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.length);  // 写满了，非空
 
             // 将图片数据保存到文件，并进行情绪识别
             try (OutputStream outputStream = new FileOutputStream(imageFile)) {
@@ -1262,12 +1377,12 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
     public static boolean saveImageToGallery1(Context context, Bitmap image) {
         Long mImageTime = System.currentTimeMillis();
         String imageDate = new SimpleDateFormat("yyyyMMdd-HHmmss").format(new Date(mImageTime));
-        String SCREENSHOT_FILE_NAME_TEMPLATE = "winetalk_%s.png";//图片名称，以"winetalk"+时间戳命名
+        String SCREENSHOT_FILE_NAME_TEMPLATE = "winetalk_%s.png";  // 图片名称，以"winetalk"+时间戳命名
         String mImageFileName = String.format(SCREENSHOT_FILE_NAME_TEMPLATE, imageDate);
 
         final ContentValues values = new ContentValues();
         values.put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_PICTURES
-                + File.separator + "winetalk"); //Environment.DIRECTORY_SCREENSHOTS:截图,图库中显示的文件夹名。"dh"
+                + File.separator + "winetalk");  // Environment.DIRECTORY_SCREENSHOTS:截图,图库中显示的文件夹名。"dh"
         values.put(MediaStore.MediaColumns.DISPLAY_NAME, mImageFileName);
         values.put(MediaStore.MediaColumns.MIME_TYPE, "image/png");
         values.put(MediaStore.MediaColumns.DATE_ADDED, mImageTime / 1000);
