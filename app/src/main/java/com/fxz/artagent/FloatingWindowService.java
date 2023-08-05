@@ -7,10 +7,12 @@ import android.annotation.SuppressLint;
 import android.app.AlertDialog;
 import android.app.Notification;
 import android.app.Service;
+import android.content.BroadcastReceiver;
 import android.content.ContentResolver;
 import android.content.ContentValues;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.content.res.Resources;
@@ -26,7 +28,6 @@ import android.hardware.camera2.CameraCharacteristics;
 import android.hardware.camera2.CameraDevice;
 import android.hardware.camera2.CameraManager;
 import android.hardware.camera2.CaptureRequest;
-import android.hardware.camera2.TotalCaptureResult;
 import android.hardware.camera2.params.StreamConfigurationMap;
 import android.media.AudioFormat;
 import android.media.AudioRecord;
@@ -66,7 +67,7 @@ import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.core.app.ActivityCompat;
-import androidx.recyclerview.widget.GridLayoutManager;
+import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
@@ -129,9 +130,6 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
     View.OnTouchListener onTouchListener;
     Handler handler = new Handler();
 
-    public static final MediaType JSON
-            = MediaType.get("application/json; charset=utf-8");
-
     private OkHttpClient buildHttpClient() {  // 天气client
         return new OkHttpClient.Builder()
                 .retryOnConnectionFailure(true)
@@ -165,6 +163,8 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
     List<MessageBean> messageBeanList = new ArrayList<>();
     ChatAdapter chatAdapter;
 
+    private BroadcastReceiver imageSelectedReceiver;  // 从相册里选取图片发送
+
     @Override
     public IBinder onBind(Intent intent) {
         return null;
@@ -174,6 +174,19 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
     @Override
     public void onCreate() {
         super.onCreate();
+        imageSelectedReceiver = new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context context, Intent intent) {
+                String selectedImageUri = intent.getStringExtra("selectedImageUri");
+                if (selectedImageUri != null) {
+                    Uri imageUri = Uri.parse(selectedImageUri);
+                    messageBeanList.add(new MessageBean("user", imageUri.toString(), true));
+                    chatAdapter.notifyDataSetChanged();
+                }
+            }
+        };
+        LocalBroadcastManager.getInstance(this).registerReceiver(imageSelectedReceiver, new IntentFilter("com.fxz.artagent.ACTION_IMAGE_SELECTED"));
+
         windowManager = (WindowManager) getSystemService(WINDOW_SERVICE);
         Display display = windowManager.getDefaultDisplay();
         Point size = new Point();
@@ -250,9 +263,13 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
         tv5.setOnClickListener(view -> {
             ll0.setVisibility(View.GONE);
             fl1.setVisibility(View.VISIBLE);
-            tvTitle.setText("Gallery");
+            tvTitle.setText("Chat with Context-Aware ArtAgent");
             fl1.removeAllViews();
-            fl1.addView(getView5(), new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT));
+            fl1.addView(getViewChat(), new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT));
+
+            Intent intent = new Intent(this, ImagePickerActivity.class);
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+            startActivity(intent);
         });
         tv6.setOnClickListener(view -> {
             ll0.setVisibility(View.GONE);
@@ -1318,7 +1335,9 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
         // 创建保存图片的文件
         File imageDirectory = getApplicationContext().getExternalFilesDir(Environment.DIRECTORY_PICTURES);
         if (imageDirectory != null) {
-            File imageFile = new File(imageDirectory, "tempImage.jpg");
+            String fileName = "tempImage" + System.currentTimeMillis() + ".jpg";
+            File imageFile = new File(imageDirectory, fileName);
+
             Bitmap bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.length);  // 写满了，非空
 
             // 将图片数据保存到文件，并进行情绪识别/传入聊天框
@@ -1373,9 +1392,7 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
         String storePath = Environment.getExternalStorageDirectory().getAbsolutePath() + File.separator + "dearxy";
 
         File appDir = new File(storePath);
-        if (!appDir.exists()) {
-            appDir.mkdir();
-        }
+        if (!appDir.exists()) appDir.mkdir();
         String fileName = System.currentTimeMillis() + ".jpg";
         File file = new File(appDir, fileName);
         try {
@@ -1442,43 +1459,29 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
     private int getJpegOrientation(CameraCharacteristics c, int deviceOrientation) {
         if (deviceOrientation == android.view.OrientationEventListener.ORIENTATION_UNKNOWN) return 0;
         int sensorOrientation = c.get(CameraCharacteristics.SENSOR_ORIENTATION);
-
-        // Round device orientation to a multiple of 90
         deviceOrientation = (deviceOrientation + 45) / 90 * 90;
 
-        // Reverse device orientation for front-facing cameras
         boolean facingFront = c.get(CameraCharacteristics.LENS_FACING) == CameraCharacteristics.LENS_FACING_FRONT;
         if (facingFront) deviceOrientation = -deviceOrientation;
-
-        // Calculate desired JPEG orientation relative to camera orientation to make
-        // the image upright relative to the device orientation
-        int jpegOrientation = (sensorOrientation + deviceOrientation + 360) % 360;
-
-        return jpegOrientation;
+        return (sensorOrientation + deviceOrientation + 360) % 360;
     }
 
     private void startCameraPreview(boolean isEmotion) {
         if (cameraDevice == null || !textureView.isAvailable()) {
             return;
         }
-
         SurfaceTexture surfaceTexture = textureView.getSurfaceTexture();
         if (surfaceTexture == null) {
             return;
         }
-
-        // Get the optimal preview size for the TextureView
         android.util.Size previewSize = getOptimalPreviewSize();
         int desiredHeight = Objects.requireNonNull(previewSize).getWidth() * 4 / 3;
-
-        // Set the size of the SurfaceTexture and TextureView based on the preview size
         surfaceTexture.setDefaultBufferSize(previewSize.getWidth(), previewSize.getHeight());
         ViewGroup.LayoutParams layoutParams = textureView.getLayoutParams();
         layoutParams.width = previewSize.getWidth();
         layoutParams.height = desiredHeight;
         textureView.setLayoutParams(layoutParams);
 
-        // Set up the capture request for the camera preview
         try {
             imageReader = ImageReader.newInstance(previewSize.getWidth(), previewSize.getHeight(), ImageFormat.JPEG, 1);
             imageReader.setOnImageAvailableListener(reader -> {
@@ -1496,7 +1499,6 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
             List<Surface> surfaces = new ArrayList<>();
             surfaces.add(previewSurface);
 
-            // Create a CameraCaptureSession for camera preview
             cameraDevice.createCaptureSession(surfaces, new CameraCaptureSession.StateCallback() {
                 @Override
                 public void onConfigured(@NonNull CameraCaptureSession session) {
@@ -1509,7 +1511,6 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
                         e.printStackTrace();
                     }
                 }
-
                 @Override
                 public void onConfigureFailed(@NonNull CameraCaptureSession session) {
                     // Handle configuration failure
@@ -1533,8 +1534,7 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
         StreamConfigurationMap map = characteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
 
         // 确定你的目标宽高比。这可能需要你调查系统相机应用的默认设置或用户可能的自定义设置。
-        final double RATIO_4_3_VALUE = 3.0 / 4.0;
-        double targetRatio = RATIO_4_3_VALUE; // 根据需要更改
+        double targetRatio = 3.0 / 4.0; // 根据需要更改
 
         Size[] previewSizes = map.getOutputSizes(SurfaceTexture.class);
 
@@ -1549,22 +1549,6 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
             }
         }
         return targetPreviewSize;
-    }
-
-
-    private View getView5() {
-        View view = LayoutInflater.from(this).inflate(R.layout.view_gallery, null);
-        RecyclerView recyclerView = view.findViewById(R.id.recycler_view);
-        recyclerView.setLayoutManager(new GridLayoutManager(this, 3));
-        GalleryAdapter adapter = new GalleryAdapter();
-        ArrayList<Integer> list = new ArrayList<>();
-        int[] resIds = new int[]{R.mipmap.i1, R.mipmap.i2, R.mipmap.i3, R.mipmap.i4, R.mipmap.i5, R.mipmap.i6, R.mipmap.i7, R.mipmap.i8, R.mipmap.i9, R.mipmap.i10, R.mipmap.i11, R.mipmap.i12};
-        for (int i = 0; i < 12; i++) {
-            list.add(resIds[i]);
-        }
-        adapter.setList(list);
-        recyclerView.setAdapter(adapter);
-        return view;
     }
 
     private void toggleOtherLayout() {
@@ -1627,9 +1611,9 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
 
     private void animateExpandV(final View view) {
         view.setVisibility(View.VISIBLE);
-        final int targetWdith = view.getMeasuredHeight();
+        final int targetWidth = view.getMeasuredHeight();
 
-        ViewPropertyAnimator animator = view.animate().translationYBy(-targetWdith).setDuration(300);
+        ViewPropertyAnimator animator = view.animate().translationYBy(-targetWidth).setDuration(300);
 
         animator.setListener(new AnimatorListenerAdapter() {
             @Override
@@ -1653,11 +1637,12 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
         }
         super.onDestroy();
         if (layout != null) windowManager.removeView(layout);
+        // 取消注册BroadcastReceiver
+        LocalBroadcastManager.getInstance(this).unregisterReceiver(imageSelectedReceiver);
     }
 
     private void getLatestTexts() {
         List<String> latestTexts = TextAccessibilityService.getLatestTexts();
-        Log.e("Float", "AllText: " + latestTexts);
         saveTextsToPreferences(latestTexts);
         new Handler(Looper.getMainLooper()).postDelayed(() -> Toast.makeText(FloatingWindowService.this, "Screen Content Saved", Toast.LENGTH_SHORT).show(), 0);
     }
