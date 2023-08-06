@@ -315,13 +315,15 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
                 mLocationOption.setOnceLocationLatest(true);
                 mLocationOption.setNeedAddress(true);
                 mLocationClient.setLocationOption(mLocationOption);
-                fetchWeatherData(new WeatherTextCallback() {
-                    @Override
-                    public void onWeatherTextReceived(String weatherText) {
-                        mLocationClient.setLocationListener(amapLocation -> {
-                            if (amapLocation != null && amapLocation.getErrorCode() == 0) {
-                                String address = amapLocation.getAddress();
+                mLocationClient.setLocationListener(amapLocation -> {
+                    if (amapLocation != null && amapLocation.getErrorCode() == 0) {
+                        double latitude = Math.round(amapLocation.getLatitude() * 100.0) / 100.0;  // 保留两位小数
+                        double longitude = Math.round(amapLocation.getLongitude() * 100.0) / 100.0;  // 保留两位小数
+                        String address = amapLocation.getAddress();
 
+                        fetchWeatherData(latitude, longitude, new WeatherTextCallback() {
+                            @Override
+                            public void onWeatherTextReceived(String weatherText) {
                                 getLatestTexts();
                                 // 从SharedPreferences中获取文本
                                 SharedPreferences prefs = getSharedPreferences(PREFERENCES_NAME, MODE_PRIVATE);
@@ -329,21 +331,20 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
 
                                 // 所有数据都已经获取到，调用 requestTopic
                                 requestTopic(userInput, weatherText, address, screenText);
-                            } else {
-                                Log.e("AmapError", "location Error, ErrCode:" + amapLocation.getErrorCode() + ", errInfo:" + amapLocation.getErrorInfo());
+                            }
+                            @Override
+                            public void onError(Exception e) {
+                                Log.e("WeatherError", "Failed to get weather data", e);
                             }
                         });
-                        mLocationClient.startLocation();
-                    }
-                    @Override
-                    public void onError(Exception e) {
-                        Log.e("WeatherError", "Failed to get weather data", e);
+                    } else {
+                        Log.e("AmapError", "location Error, ErrCode:" + amapLocation.getErrorCode() + ", errInfo:" + amapLocation.getErrorInfo());
                     }
                 });
+                mLocationClient.startLocation();
             } else {
                 requestArgue();
             }
-
             etInput.setText("");  // 请求完再清空etInput
             Log.e(TAG, String.valueOf(messageBeanList.size()));
         });
@@ -649,13 +650,12 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
         });
     }
 
-    private void imageEditTopic(String input, String weatherText, String mapText, Bitmap bitmap) {
+    private void imageEditTopic(String input, String weatherText, String mapText, File imageFile) {  // 暂时不考虑user command只给评价和推荐
         // 上传图片给建议，和屏幕文本无关，但为了不重写prompt，直接令其为空
 //        String faceText = faceView.getText().toString();
 //        String musicText = musicView.getText().toString();
         String faceText = "";
         String musicText = "";
-
         //合并所有视图中的文本
         String combinedText = "Location:["+mapText+"],Phone-Content:[],Facial Expression:["+faceText+"],Weather:["+weatherText+"],Music:["+musicText+"],User command:["+input+"]";
         Log.e(TAG, "predict: " + combinedText);
@@ -667,20 +667,12 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
             JSONArray history = new JSONArray();
             data.put("history", history);
             data.put("userID", 123456);
-            data.put("width", 512);
-            data.put("height", 512);
             Log.e(TAG, "onCreate: data");
         } catch (JSONException e) {
             e.printStackTrace();
         }
 
-        // Save the bitmap to a file
-        File imageFile = new File(getExternalFilesDir(Environment.DIRECTORY_PICTURES), "tempImage.jpg");
-        try (FileOutputStream out = new FileOutputStream(imageFile)) {
-            bitmap.compress(Bitmap.CompressFormat.JPEG, 80, out);
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
+
         RequestBody requestFile = RequestBody.create(imageFile, MediaType.parse("image/jpeg"));
         MultipartBody.Part filePart = MultipartBody.Part.createFormData("image", imageFile.getName(), requestFile);
         // Prepare the other parts
@@ -697,7 +689,6 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
                 e.printStackTrace();
             }
         }
-        // Create the final multipart request
         MultipartBody.Builder multipartBodyBuilder = new MultipartBody.Builder()
                 .setType(MultipartBody.FORM)
                 .addPart(filePart);
@@ -705,6 +696,7 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
             multipartBodyBuilder.addPart(part);
         }
         MultipartBody multipartBody = multipartBodyBuilder.build();
+        Log.e(TAG, String.valueOf(multipartBody));
         Request request = new Request.Builder()
                 .url("http://166.111.139.116:22231/image_edit_topic")
                 .post(multipartBody)
@@ -717,7 +709,7 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
                 .callTimeout(1200, TimeUnit.SECONDS) // 增加全局调用超时
                 .build();
         okHttpClient.newCall(request).enqueue(new Callback() {
-        // 不要在主线程中执行网络请求，因为这可能导致应用的用户界面无响应。OkHttp库已经在新的线程中处理了这个问题
+            // 不要在主线程中执行网络请求，因为这可能导致应用的用户界面无响应。OkHttp库已经在新的线程中处理了这个问题
             @Override
             public void onFailure(@NonNull Call call, @NonNull IOException e) {
                 Log.e(TAG, "onFailure: image_edit_topic");
@@ -740,7 +732,8 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
 
                 // 使用 Gson 解析 JSON 数据
                 Gson gson = new Gson();
-                Type type = new TypeToken<Map<String, Object>>() {}.getType();
+                Type type = new TypeToken<Map<String, Object>>() {
+                }.getType();
                 Map<String, Object> resMap = gson.fromJson(resStr, type);
 
                 List<Map<String, String>> history = (List<Map<String, String>>) resMap.get("history");
@@ -1358,13 +1351,54 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
                     fl1.addView(getViewChat(), new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT));
                     messageBeanList.add(new MessageBean("user", imageFile.getAbsolutePath(), true));
                     chatAdapter.notifyDataSetChanged();
-                    Log.e("CameraActivity", "Image saved");
                 }
             } catch (IOException e) {
                 Log.e(TAG, "error file");
                 e.printStackTrace();
             } finally {
                 image.close();  // Close the image when done with it
+            }
+
+            if(!isEmotion) {
+                AMapLocationClient.updatePrivacyShow(getApplicationContext(), true, true);
+                AMapLocationClient.updatePrivacyAgree(getApplicationContext(), true);
+                try {
+                    mLocationClient = new AMapLocationClient(getApplicationContext());
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+                AMapLocationClientOption mLocationOption = new AMapLocationClientOption();
+                mLocationOption.setGeoLanguage(AMapLocationClientOption.GeoLanguage.EN);  // 设置为英文
+                mLocationOption.setLocationMode(AMapLocationClientOption.AMapLocationMode.Hight_Accuracy);
+                mLocationOption.setOnceLocation(true);
+                mLocationOption.setOnceLocationLatest(true);
+                mLocationOption.setNeedAddress(true);
+                mLocationClient.setLocationOption(mLocationOption);
+                mLocationClient.setLocationListener(amapLocation -> {
+                    if (amapLocation != null && amapLocation.getErrorCode() == 0) {
+                        double latitude = Math.round(amapLocation.getLatitude() * 100.0) / 100.0;  // 保留两位小数
+                        double longitude = Math.round(amapLocation.getLongitude() * 100.0) / 100.0;  // 保留两位小数
+                        String address = amapLocation.getAddress();
+
+                        fetchWeatherData(latitude, longitude, new WeatherTextCallback() {
+                            @Override
+                            public void onWeatherTextReceived(String weatherText) {
+                                handler.post(() -> {
+                                    messageBeanList.add(new MessageBean("user", "Please provide suggestions for this image.")); // 对图片的评价和修改建议
+                                    chatAdapter.notifyDataSetChanged();
+                                    imageEditTopic("", weatherText, address, imageFile);
+                                });
+                            }
+                            @Override
+                            public void onError(Exception e) {
+                                Log.e("WeatherError", "Failed to get weather data", e);
+                            }
+                        });
+                    } else {
+                        Log.e("AmapError", "location Error, ErrCode:" + amapLocation.getErrorCode() + ", errInfo:" + amapLocation.getErrorInfo());
+                    }
+                });
+                mLocationClient.startLocation();
             }
             saveImageToGallerySWN(getApplicationContext(), bitmap);
         }
@@ -1659,8 +1693,8 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
     public void onTextReceived(List<String> allText) {
     }
 
-    private void fetchWeatherData(WeatherTextCallback callback) {
-        String url = "https://devapi.qweather.com/v7/grid-weather/now?location=116.41,39.92&key=2d164f0582c247b696e9c0aa6302d874";
+    private void fetchWeatherData(double latitude, double longitude, WeatherTextCallback callback) {
+        String url = "https://devapi.qweather.com/v7/grid-weather/now?location=" + longitude + "," + latitude + "&key=2d164f0582c247b696e9c0aa6302d874";
         final Request request = new Request.Builder()
                 .url(url)
                 .build();
@@ -1681,9 +1715,7 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
                         JSONObject jsonObject = new JSONObject(responseData);
                         JSONObject nowObject = jsonObject.getJSONObject("now");
                         String text = nowObject.getString("text");
-
                         Log.e("WeatherAPI", "Weather text: " + text);
-
                         // 当获取到天气文本后，调用回调
                         if (callback != null) {
                             callback.onWeatherTextReceived(text);
