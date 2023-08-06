@@ -44,6 +44,7 @@ import android.os.Process;
 import android.provider.MediaStore;
 import android.text.TextUtils;
 import android.text.format.DateUtils;
+import android.util.DisplayMetrics;
 import android.util.Log;
 import android.util.Size;
 import android.view.Display;
@@ -115,13 +116,13 @@ import okhttp3.WebSocketListener;
 
 public class FloatingWindowService extends Service implements TextAccessibilityService.TextCallback {
     private WindowManager windowManager;
-    private View layout;
+    private View layout;  // 整个工具栏
     public static final String CHANNEL_ID = "FloatingWindowServiceChannel";
     public static final String PREFERENCES_NAME = "SavedTexts";
     public static final String PREFERENCES_KEY = "texts";
     EditText etInput;
-    ImageView ivSend, ivPaint, ivMirco, ivDotView;
-    TextView tv1, tv2, tv3, tv4, tv5, tv6, tv7, tvTitle;
+    ImageView ivSend, ivMirco, ivDotView;
+    TextView return_chat, tv1, tv2, tv3, tv4, tv5, tv6, tv7, tvTitle;
     private int initialX, initialY;
     private float initialTouchX, initialTouchY;
     private boolean isOtherLayoutVisible = true;
@@ -160,8 +161,9 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
     static WebIATWS.Decoder decoder = new WebIATWS.Decoder();
     private static final BlockingQueue<byte[]> bufferQueue = new ArrayBlockingQueue<>(MAX_QUEUE_SIZE);
 
-    List<MessageBean> messageBeanList = new ArrayList<>();
+    List<MessageBean> messageBeanList = new ArrayList<>();  // 不需要输出图片路径，在 content 里面就是路径，只是显示成图片而已
     ChatAdapter chatAdapter;
+    RecyclerView recyclerView;
 
     private BroadcastReceiver imageSelectedReceiver;  // 从相册里选取图片发送
 
@@ -180,8 +182,12 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
                 String selectedImageUri = intent.getStringExtra("selectedImageUri");
                 if (selectedImageUri != null) {
                     Uri imageUri = Uri.parse(selectedImageUri);
-                    messageBeanList.add(new MessageBean("user", imageUri.toString(), true));
-                    chatAdapter.notifyDataSetChanged();
+                    handler.post(() -> {
+                        messageBeanList.add(new MessageBean("user", imageUri.toString(), true));
+                        int positionInserted = chatAdapter.getItemCount() - 1;
+                        chatAdapter.notifyItemInserted(positionInserted);
+                        recyclerView.scrollToPosition(positionInserted);
+                    });
                 }
             }
         };
@@ -201,10 +207,10 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
         ivDotView = layout.findViewById(R.id.iv_dot_view);
         etInput = layout.findViewById(R.id.et_input);
         ivSend = layout.findViewById(R.id.btn_send);
-        ivPaint = layout.findViewById(R.id.btn_paint);
         ivMirco = layout.findViewById(R.id.btn_mirco);
         llCon1 = layout.findViewById(R.id.ll_con_1);
         llTool = layout.findViewById(R.id.ll_tool);
+        return_chat = layout.findViewById(R.id.return_chat);
         tv1 = layout.findViewById(R.id.tv_1);
         tv2 = layout.findViewById(R.id.tv_2);
         tv3 = layout.findViewById(R.id.tv_3);
@@ -216,17 +222,12 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
         fl1 = layout.findViewById(R.id.fl_1);
         tvTitle = layout.findViewById(R.id.tv_title);
 
-        ivPaint.setOnClickListener(view -> {
-            if (fl1.getVisibility() == View.GONE) {
-                ll0.setVisibility(View.GONE);
-                fl1.setVisibility(View.VISIBLE);
-                tvTitle.setText("Chat");
-                fl1.removeAllViews();
-                fl1.addView(getViewChat(), new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT));
-            }
-            messageBeanList.add(new MessageBean("user", "Please generate an image based on our previous art discussion."));
-            chatAdapter.notifyDataSetChanged();
-            requestImage();
+        return_chat.setOnClickListener(view -> {
+            ll0.setVisibility(View.GONE);
+            fl1.setVisibility(View.VISIBLE);
+            tvTitle.setText("Chat");
+            fl1.removeAllViews();
+            fl1.addView(getViewChat(), new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT));
         });
 
         tv1.setOnClickListener(view -> {
@@ -260,10 +261,10 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
             fl1.removeAllViews();
             fl1.addView(getView6(), new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT));
         });
-        tv5.setOnClickListener(view -> {
+        tv5.setOnClickListener(view -> {  // 找到系统相册
             ll0.setVisibility(View.GONE);
             fl1.setVisibility(View.VISIBLE);
-            tvTitle.setText("Chat with Context-Aware ArtAgent");
+            tvTitle.setText("Chat");
             fl1.removeAllViews();
             fl1.addView(getViewChat(), new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT));
 
@@ -292,15 +293,20 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
             if (fl1.getVisibility() == View.GONE) {
                 ll0.setVisibility(View.GONE);
                 fl1.setVisibility(View.VISIBLE);
-                tvTitle.setText("Chat with Context-Aware ArtAgent");
+                tvTitle.setText("Chat");
                 fl1.removeAllViews();
                 fl1.addView(getViewChat(), new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT));
             }
             String userInput = etInput.getText().toString();
-            messageBeanList.add(new MessageBean("user", userInput));
-            chatAdapter.notifyDataSetChanged();
 
-            if (messageBeanList.size() == 1) {
+            handler.post(() -> {
+                messageBeanList.add(new MessageBean("user", userInput));
+                int positionInserted = chatAdapter.getItemCount() - 1;
+                chatAdapter.notifyItemInserted(positionInserted);
+                recyclerView.scrollToPosition(positionInserted);
+            });
+
+            if (messageBeanList.size() == 0) {
                 AMapLocationClient.updatePrivacyShow(getApplicationContext(), true, true);
                 AMapLocationClient.updatePrivacyAgree(getApplicationContext(), true);
                 try {
@@ -366,9 +372,12 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
                 WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
                 WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL, PixelFormat.TRANSLUCENT);
 
-        params.gravity = Gravity.CENTER_VERTICAL | Gravity.START;
+        params.gravity = Gravity.CENTER_HORIZONTAL | Gravity.TOP;
         params.x = 0;
-        params.y = 0;
+        DisplayMetrics displayMetrics = new DisplayMetrics();
+        windowManager.getDefaultDisplay().getMetrics(displayMetrics);
+        int screenHeight = displayMetrics.heightPixels;
+        params.y = screenHeight / 8;
 
         onTouchListener = (view, motionEvent) -> {
             switch (motionEvent.getAction()) {
@@ -407,14 +416,13 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
                     return;
                 }
                 if (llTool.getVisibility() == View.VISIBLE) {
-                    animateCollapseV(llTool);
-//                    messageBeanList.clear();
+                    animateCollapseV(llTool);  // 关上工具栏
                 } else {
                     if (fl1.getVisibility() == View.VISIBLE) {
                         fl1.setVisibility(View.GONE);
                         ll0.setVisibility(View.VISIBLE);
                     }
-                    animateExpandV(llTool);
+                    animateExpandV(llTool);  // 展开工具栏
                 }
             }
         });
@@ -439,6 +447,7 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
                 JSONObject historyItem = new JSONObject();
                 historyItem.put("role", messageBean.getRole());
                 historyItem.put("content", messageBean.getMessage());
+                Log.e(TAG, messageBean.getMessage());
                 history.put(historyItem);
             }
             data.put("history", history);
@@ -454,7 +463,9 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
                 e.printStackTrace();
                 handler.post(() -> {
                     messageBeanList.add(new MessageBean("assistant","gpt4_sd_draw error"));
-                    chatAdapter.notifyDataSetChanged();
+                    int positionInserted = chatAdapter.getItemCount() - 1;
+                    chatAdapter.notifyItemInserted(positionInserted);
+                    recyclerView.scrollToPosition(positionInserted);
                 });
             }
 
@@ -477,7 +488,9 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
                 // 使用Glide或者其他库从imageUrl加载图像
                 handler.post(() -> {
                     messageBeanList.add(new MessageBean("assistant", imageUrl, true));
-                    chatAdapter.notifyDataSetChanged();
+                    int positionInserted = chatAdapter.getItemCount() - 1;
+                    chatAdapter.notifyItemInserted(positionInserted);
+                    recyclerView.scrollToPosition(positionInserted);
                 });
 
 
@@ -499,7 +512,9 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
                         String lastAssistantContent = (String) lastAssistantMessage.get("content");
                         handler.post(() -> {
                             messageBeanList.add(new MessageBean("assistant", lastAssistantContent));
-                            chatAdapter.notifyDataSetChanged();
+                            int positionInserted = chatAdapter.getItemCount() - 1;
+                            chatAdapter.notifyItemInserted(positionInserted);
+                            recyclerView.scrollToPosition(positionInserted);
                         });
                     }
                 }
@@ -540,7 +555,9 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
                 e.printStackTrace();
                 handler.post(() -> {
                     messageBeanList.add(new MessageBean("assistant", "gpt4_mode_2 onFailure Error"));
-                    chatAdapter.notifyDataSetChanged();
+                    int positionInserted = chatAdapter.getItemCount() - 1;
+                    chatAdapter.notifyItemInserted(positionInserted);
+                    recyclerView.scrollToPosition(positionInserted);
                 });
             }
 
@@ -548,6 +565,9 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
             public void onResponse(@NonNull Call call, @NonNull Response response) throws IOException {
                 if (!response.isSuccessful()) {
                     messageBeanList.add(new MessageBean("assistant", "gpt4_mode_2 onResponse Error"));
+                    int positionInserted = chatAdapter.getItemCount() - 1;
+                    chatAdapter.notifyItemInserted(positionInserted);
+                    recyclerView.scrollToPosition(positionInserted);
                     throw new IOException("Unexpected code " + response);
                 }
 
@@ -572,7 +592,9 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
 
                 handler.post(() -> {
                     messageBeanList.add(new MessageBean("assistant", displayContent)); // bot回复在左侧
-                    chatAdapter.notifyDataSetChanged();
+                    int positionInserted = chatAdapter.getItemCount() - 1;
+                    chatAdapter.notifyItemInserted(positionInserted);
+                    recyclerView.scrollToPosition(positionInserted);
                 });
             }
         });
@@ -611,7 +633,9 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
                 e.printStackTrace();
                 handler.post(() -> {
                     messageBeanList.add(new MessageBean("assistant", "gpt4_predict Error"));
-                    chatAdapter.notifyDataSetChanged();
+                    int positionInserted = chatAdapter.getItemCount() - 1;
+                    chatAdapter.notifyItemInserted(positionInserted);
+                    recyclerView.scrollToPosition(positionInserted);
                 });
             }
 
@@ -619,6 +643,9 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
             public void onResponse(@NonNull Call call, @NonNull Response response) throws IOException {
                 if (!response.isSuccessful()) {
                     messageBeanList.add(new MessageBean("assistant", "gpt4_mode_2 Error"));
+                    int positionInserted = chatAdapter.getItemCount() - 1;
+                    chatAdapter.notifyItemInserted(positionInserted);
+                    recyclerView.scrollToPosition(positionInserted);
                     throw new IOException("Unexpected code " + response);
                 }
 
@@ -644,7 +671,9 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
 
                 handler.post(() -> {
                     messageBeanList.add(new MessageBean("assistant", displayContent)); // 更新TextView的内容
-                    chatAdapter.notifyDataSetChanged();
+                    int positionInserted = chatAdapter.getItemCount() - 1;
+                    chatAdapter.notifyItemInserted(positionInserted);
+                    recyclerView.scrollToPosition(positionInserted);
                 });
             }
         });
@@ -716,14 +745,21 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
                 e.printStackTrace();
                 handler.post(() -> {
                     messageBeanList.add(new MessageBean("assistant", "image_edit_topic onFailure Error"));
-                    chatAdapter.notifyDataSetChanged();
+                    int positionInserted = chatAdapter.getItemCount() - 1;
+                    chatAdapter.notifyItemInserted(positionInserted);
+                    recyclerView.scrollToPosition(positionInserted);
                 });
             }
 
             @Override
             public void onResponse(@NonNull Call call, @NonNull Response response) throws IOException {
                 if (!response.isSuccessful()) {
-                    messageBeanList.add(new MessageBean("assistant", "image_edit_topic onResponse Error"));
+                    handler.post(() -> {
+                        messageBeanList.add(new MessageBean("assistant", "image_edit_topic onResponse Error"));
+                        int positionInserted = chatAdapter.getItemCount() - 1;
+                        chatAdapter.notifyItemInserted(positionInserted);
+                        recyclerView.scrollToPosition(positionInserted);
+                    });
                     throw new IOException("Unexpected code " + response);
                 }
 
@@ -749,7 +785,9 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
 
                 handler.post(() -> {
                     messageBeanList.add(new MessageBean("assistant", displayContent)); // 对图片的评价和修改建议
-                    chatAdapter.notifyDataSetChanged();
+                    int positionInserted = chatAdapter.getItemCount() - 1;
+                    chatAdapter.notifyItemInserted(positionInserted);
+                    recyclerView.scrollToPosition(positionInserted);
                 });
             }
         });
@@ -757,9 +795,35 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
 
     private View getViewChat() {
         View view = LayoutInflater.from(this).inflate(R.layout.layout_chat, null);
-        RecyclerView recyclerView = view.findViewById(R.id.rv_list);
+        recyclerView = view.findViewById(R.id.rv_list);
+        TextView ivPaint = view.findViewById(R.id.btn_paint);
+        TextView tvBackTool = view.findViewById(R.id.btn_back_tool);
+        TextView tvClear = view.findViewById(R.id.btn_clear);
         recyclerView.setLayoutManager(new LinearLayoutManager(this));
         recyclerView.setAdapter(chatAdapter);
+        ivPaint.setOnClickListener(v -> {
+            handler.post(() -> {
+                messageBeanList.add(new MessageBean("user", "Please generate an image based on our previous art discussion."));
+                int positionInserted = chatAdapter.getItemCount() - 1;
+                chatAdapter.notifyItemInserted(positionInserted);
+                recyclerView.scrollToPosition(positionInserted);
+            });
+            requestImage();
+        });
+        tvBackTool.setOnClickListener(v -> {
+            llTool.setVisibility(View.GONE);
+            fl1.setVisibility(View.GONE);
+            ll0.setVisibility(View.VISIBLE);
+            llTool.setVisibility(View.VISIBLE);
+            tvTitle.setText("Tools");
+        });
+        tvClear.setOnClickListener(v -> {
+            handler.post(() -> {
+                int itemCount = messageBeanList.size();
+                messageBeanList.clear();
+                chatAdapter.notifyItemRangeRemoved(0, itemCount);
+            });
+        });
         return view;
     }
 
@@ -1346,11 +1410,13 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
                 } else {
                     ll0.setVisibility(View.GONE);
                     fl1.setVisibility(View.VISIBLE);
-                    tvTitle.setText("Chat with Context-Aware ArtAgent");
+                    tvTitle.setText("Chat");
                     fl1.removeAllViews();
                     fl1.addView(getViewChat(), new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT));
                     messageBeanList.add(new MessageBean("user", imageFile.getAbsolutePath(), true));
-                    chatAdapter.notifyDataSetChanged();
+                    int positionInserted = chatAdapter.getItemCount() - 1;
+                    chatAdapter.notifyItemInserted(positionInserted);
+                    recyclerView.scrollToPosition(positionInserted);
                 }
             } catch (IOException e) {
                 Log.e(TAG, "error file");
@@ -1385,7 +1451,9 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
                             public void onWeatherTextReceived(String weatherText) {
                                 handler.post(() -> {
                                     messageBeanList.add(new MessageBean("user", "Please provide suggestions for this image.")); // 对图片的评价和修改建议
-                                    chatAdapter.notifyDataSetChanged();
+                                    int positionInserted = chatAdapter.getItemCount() - 1;
+                                    chatAdapter.notifyItemInserted(positionInserted);
+                                    recyclerView.scrollToPosition(positionInserted);
                                     imageEditTopic("", weatherText, address, imageFile);
                                 });
                             }
@@ -1654,7 +1722,7 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
             public void onAnimationEnd(Animator animation) {
             }
         });
-
+        tvTitle.setText("Tools");
         animator.start();
     }
 

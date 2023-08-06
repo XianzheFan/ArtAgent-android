@@ -31,7 +31,6 @@ public class ChatAdapter extends RecyclerView.Adapter<ChatAdapter.ViewHolder> {
     @Override
     public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
         MessageBean message = messages.get(position);
-//        holder.textMessage.setText(message.getMessage());
         if (message.isImage()) {
             Glide.with(holder.imageView)
                     .load(message.getMessage())
