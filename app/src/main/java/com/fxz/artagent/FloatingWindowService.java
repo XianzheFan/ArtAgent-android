@@ -704,26 +704,28 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
 
         RequestBody requestFile = RequestBody.create(imageFile, MediaType.parse("image/jpeg"));
         MultipartBody.Part filePart = MultipartBody.Part.createFormData("image", imageFile.getName(), requestFile);
+
         // Prepare the other parts
-        List<MultipartBody.Part> otherParts = new ArrayList<>();
-        Iterator<String> keys = data.keys();
-        while (keys.hasNext()) {
-            String key = keys.next();
-            try {
-                String value = data.getString(key);
-                RequestBody requestBody = RequestBody.create(value, MediaType.parse("text/plain"));
-                MultipartBody.Part part = MultipartBody.Part.createFormData(key, null, requestBody);
-                otherParts.add(part);
-            } catch (JSONException e) {
-                e.printStackTrace();
-            }
-        }
+//        List<MultipartBody.Part> otherParts = new ArrayList<>();
+//        Iterator<String> keys = data.keys();
+//        while (keys.hasNext()) {
+//            String key = keys.next();
+//            try {
+//                String value = data.getString(key);
+//                RequestBody requestBody = RequestBody.create(value, MediaType.parse("text/plain"));
+//                MultipartBody.Part part = MultipartBody.Part.createFormData(key, null, requestBody);
+//                otherParts.add(part);
+//            } catch (JSONException e) {
+//                e.printStackTrace();
+//            }
+//        }
         MultipartBody.Builder multipartBodyBuilder = new MultipartBody.Builder()
                 .setType(MultipartBody.FORM)
-                .addPart(filePart);
-        for (MultipartBody.Part part : otherParts) {
-            multipartBodyBuilder.addPart(part);
-        }
+                .addPart(filePart)
+                .addFormDataPart("data", data.toString());
+//        for (MultipartBody.Part part : otherParts) {
+//            multipartBodyBuilder.addPart(part);
+//        }
         MultipartBody multipartBody = multipartBodyBuilder.build();
         Log.e(TAG, String.valueOf(multipartBody));
         Request request = new Request.Builder()
@@ -1440,6 +1442,7 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
                 mLocationOption.setOnceLocationLatest(true);
                 mLocationOption.setNeedAddress(true);
                 mLocationClient.setLocationOption(mLocationOption);
+                imageEditTopic("", "test", "test", imageFile);
                 mLocationClient.setLocationListener(amapLocation -> {
                     if (amapLocation != null && amapLocation.getErrorCode() == 0) {
                         double latitude = Math.round(amapLocation.getLatitude() * 100.0) / 100.0;  // 保留两位小数
