@@ -701,31 +701,13 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
             e.printStackTrace();
         }
 
-
-        RequestBody requestFile = RequestBody.create(imageFile, MediaType.parse("image/jpeg"));
+        RequestBody requestFile = RequestBody.create(imageFile, MediaType.parse("image/jpg"));
         MultipartBody.Part filePart = MultipartBody.Part.createFormData("image", imageFile.getName(), requestFile);
 
-        // Prepare the other parts
-//        List<MultipartBody.Part> otherParts = new ArrayList<>();
-//        Iterator<String> keys = data.keys();
-//        while (keys.hasNext()) {
-//            String key = keys.next();
-//            try {
-//                String value = data.getString(key);
-//                RequestBody requestBody = RequestBody.create(value, MediaType.parse("text/plain"));
-//                MultipartBody.Part part = MultipartBody.Part.createFormData(key, null, requestBody);
-//                otherParts.add(part);
-//            } catch (JSONException e) {
-//                e.printStackTrace();
-//            }
-//        }
         MultipartBody.Builder multipartBodyBuilder = new MultipartBody.Builder()
                 .setType(MultipartBody.FORM)
                 .addPart(filePart)
                 .addFormDataPart("data", data.toString());
-//        for (MultipartBody.Part part : otherParts) {
-//            multipartBodyBuilder.addPart(part);
-//        }
         MultipartBody multipartBody = multipartBodyBuilder.build();
         Log.e(TAG, String.valueOf(multipartBody));
         Request request = new Request.Builder()
@@ -1259,7 +1241,6 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
                         @Override
                         public void onOpened(@NonNull CameraDevice camera) {
                             cameraDevice = camera;
-                            // Now you have the camera device, and you can start camera preview.
                             startCameraPreview(isEmotion);
                         }
 
@@ -1384,32 +1365,21 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
 
 
     private void saveImage(Image image, boolean isEmotion) {
-        // 获取图片数据
-        ByteBuffer buffer = image.getPlanes()[0].getBuffer();
-        Log.e(TAG, String.valueOf(buffer.getLong()));
-        byte[] bytes = new byte[buffer.capacity()];
-        buffer.rewind();
-        buffer.get(bytes);
+        try {
+            ByteBuffer buffer = image.getPlanes()[0].getBuffer();
+            buffer.rewind();
+            byte[] bytes = new byte[buffer.capacity()];
+            buffer.get(bytes);
+            Bitmap bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.length);
+            rlCamara.setVisibility(View.GONE);
 
-        // 创建保存图片的文件
-        File imageDirectory = getApplicationContext().getExternalFilesDir(Environment.DIRECTORY_PICTURES);
-        if (imageDirectory != null) {
-            String fileName = "tempImage" + System.currentTimeMillis() + ".jpg";
-            File imageFile = new File(imageDirectory, fileName);
-
-            Bitmap bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.length);  // 写满了，非空
-
-            // 将图片数据保存到文件，并进行情绪识别/传入聊天框
-            try (OutputStream outputStream = new FileOutputStream(imageFile)) {
-                outputStream.write(bytes);
-                rlCamara.setVisibility(View.GONE);
-
-                if (isEmotion) {
-                    tvTake.setVisibility(View.VISIBLE);
-                    tvTake.setText("Processing...");
-                    Log.e(TAG, "Processing");
-                    new PhotoUploader(compress(bitmap, 80), result1 -> tvTake.setText(result1), getApplicationContext()).execute();
-                } else {
+            if (isEmotion) {
+                tvTake.setVisibility(View.VISIBLE);
+                tvTake.setText("Processing...");
+                new PhotoUploader(compress(bitmap, 80), result1 -> tvTake.setText(result1), getApplicationContext()).execute();
+            } else {
+                File imageFile = saveImageToFile(bytes);
+                if (imageFile != null) {
                     ll0.setVisibility(View.GONE);
                     fl1.setVisibility(View.VISIBLE);
                     tvTitle.setText("Chat");
@@ -1418,61 +1388,67 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
                     messageBeanList.add(new MessageBean("user", imageFile.getAbsolutePath(), true));
                     int positionInserted = chatAdapter.getItemCount() - 1;
                     chatAdapter.notifyItemInserted(positionInserted);
+                    messageBeanList.add(new MessageBean("user", "Please provide suggestions for this image."));
+                    positionInserted = chatAdapter.getItemCount() - 1;
+                    chatAdapter.notifyItemInserted(positionInserted);
                     recyclerView.scrollToPosition(positionInserted);
-                }
-            } catch (IOException e) {
-                Log.e(TAG, "error file");
-                e.printStackTrace();
-            } finally {
-                image.close();  // Close the image when done with it
-            }
 
-            if(!isEmotion) {
-                AMapLocationClient.updatePrivacyShow(getApplicationContext(), true, true);
-                AMapLocationClient.updatePrivacyAgree(getApplicationContext(), true);
-                try {
-                    mLocationClient = new AMapLocationClient(getApplicationContext());
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
-                AMapLocationClientOption mLocationOption = new AMapLocationClientOption();
-                mLocationOption.setGeoLanguage(AMapLocationClientOption.GeoLanguage.EN);  // 设置为英文
-                mLocationOption.setLocationMode(AMapLocationClientOption.AMapLocationMode.Hight_Accuracy);
-                mLocationOption.setOnceLocation(true);
-                mLocationOption.setOnceLocationLatest(true);
-                mLocationOption.setNeedAddress(true);
-                mLocationClient.setLocationOption(mLocationOption);
-                imageEditTopic("", "test", "test", imageFile);
-                mLocationClient.setLocationListener(amapLocation -> {
-                    if (amapLocation != null && amapLocation.getErrorCode() == 0) {
-                        double latitude = Math.round(amapLocation.getLatitude() * 100.0) / 100.0;  // 保留两位小数
-                        double longitude = Math.round(amapLocation.getLongitude() * 100.0) / 100.0;  // 保留两位小数
-                        String address = amapLocation.getAddress();
-
-                        fetchWeatherData(latitude, longitude, new WeatherTextCallback() {
-                            @Override
-                            public void onWeatherTextReceived(String weatherText) {
-                                handler.post(() -> {
-                                    messageBeanList.add(new MessageBean("user", "Please provide suggestions for this image.")); // 对图片的评价和修改建议
-                                    int positionInserted = chatAdapter.getItemCount() - 1;
-                                    chatAdapter.notifyItemInserted(positionInserted);
-                                    recyclerView.scrollToPosition(positionInserted);
-                                    imageEditTopic("", weatherText, address, imageFile);
-                                });
-                            }
-                            @Override
-                            public void onError(Exception e) {
-                                Log.e("WeatherError", "Failed to get weather data", e);
-                            }
-                        });
-                    } else {
-                        Log.e("AmapError", "location Error, ErrCode:" + amapLocation.getErrorCode() + ", errInfo:" + amapLocation.getErrorInfo());
+                    AMapLocationClient.updatePrivacyShow(getApplicationContext(), true, true);
+                    AMapLocationClient.updatePrivacyAgree(getApplicationContext(), true);
+                    try {
+                        mLocationClient = new AMapLocationClient(getApplicationContext());
+                    } catch (Exception e) {
+                        e.printStackTrace();
                     }
-                });
-                mLocationClient.startLocation();
+                    AMapLocationClientOption mLocationOption = new AMapLocationClientOption();
+                    mLocationOption.setGeoLanguage(AMapLocationClientOption.GeoLanguage.EN);
+                    mLocationOption.setLocationMode(AMapLocationClientOption.AMapLocationMode.Hight_Accuracy);
+                    mLocationOption.setOnceLocation(true);
+                    mLocationOption.setOnceLocationLatest(true);
+                    mLocationOption.setNeedAddress(true);
+                    mLocationClient.setLocationOption(mLocationOption);
+                    mLocationClient.setLocationListener(amapLocation -> {
+                        if (amapLocation != null && amapLocation.getErrorCode() == 0) {
+                            double latitude = Math.round(amapLocation.getLatitude() * 100.0) / 100.0;
+                            double longitude = Math.round(amapLocation.getLongitude() * 100.0) / 100.0;
+                            String address = amapLocation.getAddress();
+                            fetchWeatherData(latitude, longitude, new WeatherTextCallback() {
+                                @Override
+                                public void onWeatherTextReceived(String weatherText) {
+                                    imageEditTopic("", weatherText, address, imageFile);
+                                }
+                                @Override
+                                public void onError(Exception e) {
+                                    Log.e("WeatherError", "Failed to get weather data", e);
+                                }
+                            });
+                        } else {
+                            Log.e("AmapError", "location Error, ErrCode:" + amapLocation.getErrorCode() + ", errInfo:" + amapLocation.getErrorInfo());
+                        }
+                    });
+                    mLocationClient.startLocation();
+                    saveImageToGallerySWN(getApplicationContext(), bitmap);
+                }
             }
-            saveImageToGallerySWN(getApplicationContext(), bitmap);
+        } finally {
+            image.close();
         }
+    }
+
+    private File saveImageToFile(byte[] bytes) {
+        File imageDirectory = getApplicationContext().getExternalFilesDir(Environment.DIRECTORY_PICTURES);
+        if (imageDirectory != null) {
+            String fileName = "tempImage" + System.currentTimeMillis() + ".jpg";
+            File imageFile = new File(imageDirectory, fileName);
+
+            try (OutputStream outputStream = new FileOutputStream(imageFile)) {
+                outputStream.write(bytes);
+                return imageFile;
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+        return null;
     }
 
 
@@ -1660,7 +1636,6 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
         if (isOtherLayoutVisible) {
             if (llTool.getVisibility() == View.VISIBLE) {
                 animateCollapseV(llTool);
-//                messageBeanList.clear();
             }
             // 隐藏其他布局
             animateCollapse(llCon1);
