@@ -12,29 +12,24 @@ public class DoubleClickListener implements View.OnTouchListener {
 
     @Override
     public boolean onTouch(View v, MotionEvent event) {
-        switch (event.getAction()) {
-            case MotionEvent.ACTION_DOWN:
-                long clickTime = System.currentTimeMillis();
-                if (clickTime - lastClickTime < DOUBLE_CLICK_TIME_DELTA) {
-                    // 双击事件
-                    handler.removeCallbacksAndMessages(null);
-                    waitingForSecondClick = false;
-                    onDoubleClick(v);
-                } else {
-                    // 单击事件
-                    waitingForSecondClick = true;
-                    handler.postDelayed(new Runnable() {
-                        @Override
-                        public void run() {
-                            if (waitingForSecondClick) {
-                                waitingForSecondClick = false;
-                                onSingleClick(v);
-                            }
-                        }
-                    }, DOUBLE_CLICK_TIME_DELTA);
-                }
-                lastClickTime = clickTime;
-                break;
+        if (event.getAction() == MotionEvent.ACTION_DOWN) {
+            long clickTime = System.currentTimeMillis();
+            if (clickTime - lastClickTime < DOUBLE_CLICK_TIME_DELTA) {
+                // 双击事件
+                handler.removeCallbacksAndMessages(null);
+                waitingForSecondClick = false;
+                onDoubleClick(v);
+            } else {
+                // 单击事件
+                waitingForSecondClick = true;
+                handler.postDelayed(() -> {
+                    if (waitingForSecondClick) {
+                        waitingForSecondClick = false;
+                        onSingleClick(v);
+                    }
+                }, DOUBLE_CLICK_TIME_DELTA);
+            }
+            lastClickTime = clickTime;
         }
         return true;
     }

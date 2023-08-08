@@ -187,7 +187,8 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
                         int positionInserted = chatAdapter.getItemCount() - 1;
                         chatAdapter.notifyItemInserted(positionInserted);
                         recyclerView.scrollToPosition(positionInserted);
-                        messageBeanList.add(new MessageBean("user", "Please provide suggestions for this image."));
+                        messageBeanList.add(new MessageBean("user", "请给这张图片提出建议。"));
+//                        messageBeanList.add(new MessageBean("user", "Please provide suggestions for this image."));
                         positionInserted = chatAdapter.getItemCount() - 1;
                         chatAdapter.notifyItemInserted(positionInserted);
                         recyclerView.scrollToPosition(positionInserted);
@@ -200,7 +201,7 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
                             e.printStackTrace();
                         }
                         AMapLocationClientOption mLocationOption = new AMapLocationClientOption();
-                        mLocationOption.setGeoLanguage(AMapLocationClientOption.GeoLanguage.EN);
+//                        mLocationOption.setGeoLanguage(AMapLocationClientOption.GeoLanguage.EN);  // 英文的地点名
                         mLocationOption.setLocationMode(AMapLocationClientOption.AMapLocationMode.Hight_Accuracy);
                         mLocationOption.setOnceLocation(true);
                         mLocationOption.setOnceLocationLatest(true);
@@ -360,7 +361,7 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
                     e.printStackTrace();
                 }
                 AMapLocationClientOption mLocationOption = new AMapLocationClientOption();
-                mLocationOption.setGeoLanguage(AMapLocationClientOption.GeoLanguage.EN);  // 设置为英文
+//                mLocationOption.setGeoLanguage(AMapLocationClientOption.GeoLanguage.EN);  // 设置为英文
                 mLocationOption.setLocationMode(AMapLocationClientOption.AMapLocationMode.Hight_Accuracy);
                 mLocationOption.setOnceLocation(true);
                 mLocationOption.setOnceLocationLatest(true);
@@ -563,6 +564,9 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
                         });
                     }
                 }
+
+                String imageID = (String) resMap.get("imageID");
+                editImageID.setText(imageID);
             }
         });
     }
@@ -816,6 +820,8 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
                     chatAdapter.notifyItemInserted(positionInserted);
                     recyclerView.scrollToPosition(positionInserted);
                 });
+                String imageID = (String) resMap.get("imageID");
+                editImageID.setText(imageID);
             }
         });
     }
@@ -903,6 +909,8 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
                         });
                     }
                 }
+                String imageID = (String) resMap.get("imageID");
+                editImageID.setText(imageID);
             }
         });
     }
@@ -919,7 +927,8 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
         recyclerView.setAdapter(chatAdapter);
         tvPaint.setOnClickListener(v -> {
             handler.post(() -> {
-                messageBeanList.add(new MessageBean("user", "Please generate an image based on our previous art discussion."));
+                messageBeanList.add(new MessageBean("user", "请根据之前的艺术讨论生成图片。"));
+//                messageBeanList.add(new MessageBean("user", "Please generate an image based on our previous art discussion."));
                 int positionInserted = chatAdapter.getItemCount() - 1;
                 chatAdapter.notifyItemInserted(positionInserted);
                 recyclerView.scrollToPosition(positionInserted);
@@ -928,7 +937,8 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
         });
         tvEdit.setOnClickListener(v -> {
             handler.post(() -> {
-                messageBeanList.add(new MessageBean("user", "Please edit the image " + editImageID.getText().toString() + " based on our previous art discussion."));
+//                messageBeanList.add(new MessageBean("user", "Please edit the image " + editImageID.getText().toString() + " based on our previous art discussion."));
+                messageBeanList.add(new MessageBean("user", "请根据之前的艺术讨论修改 image " + editImageID.getText().toString() + "。"));
                 int positionInserted = chatAdapter.getItemCount() - 1;
                 chatAdapter.notifyItemInserted(positionInserted);
                 recyclerView.scrollToPosition(positionInserted);
@@ -1291,7 +1301,7 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
             e.printStackTrace();
         }
         AMapLocationClientOption mLocationOption = new AMapLocationClientOption();
-        mLocationOption.setGeoLanguage(AMapLocationClientOption.GeoLanguage.EN);  // 设置为英文
+//        mLocationOption.setGeoLanguage(AMapLocationClientOption.GeoLanguage.EN);  // 设置为英文
         mLocationOption.setLocationMode(AMapLocationClientOption.AMapLocationMode.Hight_Accuracy);
         mLocationOption.setOnceLocation(true);
         mLocationOption.setOnceLocationLatest(true);
@@ -1527,7 +1537,8 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
                     messageBeanList.add(new MessageBean("user", imageFile.getAbsolutePath(), true));
                     int positionInserted = chatAdapter.getItemCount() - 1;
                     chatAdapter.notifyItemInserted(positionInserted);
-                    messageBeanList.add(new MessageBean("user", "Please provide suggestions for this image."));
+//                    messageBeanList.add(new MessageBean("user", "Please provide suggestions for this image."));
+                    messageBeanList.add(new MessageBean("user", "请给这张图片提出建议。"));
                     positionInserted = chatAdapter.getItemCount() - 1;
                     chatAdapter.notifyItemInserted(positionInserted);
                     recyclerView.scrollToPosition(positionInserted);
@@ -1540,7 +1551,7 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
                         e.printStackTrace();
                     }
                     AMapLocationClientOption mLocationOption = new AMapLocationClientOption();
-                    mLocationOption.setGeoLanguage(AMapLocationClientOption.GeoLanguage.EN);
+//                    mLocationOption.setGeoLanguage(AMapLocationClientOption.GeoLanguage.EN);
                     mLocationOption.setLocationMode(AMapLocationClientOption.AMapLocationMode.Hight_Accuracy);
                     mLocationOption.setOnceLocation(true);
                     mLocationOption.setOnceLocationLatest(true);
@@ -1925,15 +1936,10 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
         File storageDir = getExternalFilesDir(Environment.DIRECTORY_PICTURES);
         File imageFile = null;
         try {
-            imageFile = File.createTempFile(
-                    imageFileName,  /* prefix */
-                    ".jpg",         /* suffix */
-                    storageDir      /* directory */
-            );
+            imageFile = File.createTempFile(imageFileName, ".jpg", storageDir);
         } catch (IOException e) {
             e.printStackTrace();
         }
-
         try {
             OutputStream output = new FileOutputStream(imageFile);
             byte[] buffer = new byte[4 * 1024]; // or other buffer size
