@@ -34,9 +34,9 @@ public class PhotoUploader extends AsyncTask<Void, Void, String> {
 
     @Override
     protected String doInBackground(Void... voids) {
-        File tempFile = new File(context.getCacheDir(), "tempImage.jpg");
+        File tempFile = new File(context.getCacheDir(), "tempImage" + System.currentTimeMillis() + ".jpg");
         try (FileOutputStream out = new FileOutputStream(tempFile)) {
-            bitmap.compress(Bitmap.CompressFormat.JPEG, 100, out);
+            bitmap.compress(Bitmap.CompressFormat.JPEG, 80, out);
             out.flush();
         } catch (IOException e) {
             e.printStackTrace();

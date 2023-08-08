@@ -84,8 +84,10 @@ import org.json.JSONObject;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStream;
 import java.lang.reflect.Type;
 import java.nio.ByteBuffer;
@@ -94,7 +96,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.Date;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -120,7 +121,7 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
     public static final String CHANNEL_ID = "FloatingWindowServiceChannel";
     public static final String PREFERENCES_NAME = "SavedTexts";
     public static final String PREFERENCES_KEY = "texts";
-    EditText etInput;
+    EditText etInput, etID, editImageID;
     ImageView ivSend, ivMirco, ivDotView;
     TextView return_chat, tv1, tv2, tv3, tv4, tv5, tv6, tv7, tvTitle;
     private int initialX, initialY;
@@ -166,12 +167,10 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
     RecyclerView recyclerView;
 
     private BroadcastReceiver imageSelectedReceiver;  // 从相册里选取图片发送
-
     @Override
     public IBinder onBind(Intent intent) {
         return null;
     }
-
     @SuppressLint("ClickableViewAccessibility")
     @Override
     public void onCreate() {
@@ -182,15 +181,60 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
                 String selectedImageUri = intent.getStringExtra("selectedImageUri");
                 if (selectedImageUri != null) {
                     Uri imageUri = Uri.parse(selectedImageUri);
+                    File imageFile = uriToFile(imageUri);
                     handler.post(() -> {
                         messageBeanList.add(new MessageBean("user", imageUri.toString(), true));
                         int positionInserted = chatAdapter.getItemCount() - 1;
                         chatAdapter.notifyItemInserted(positionInserted);
                         recyclerView.scrollToPosition(positionInserted);
+                        messageBeanList.add(new MessageBean("user", "Please provide suggestions for this image."));
+                        positionInserted = chatAdapter.getItemCount() - 1;
+                        chatAdapter.notifyItemInserted(positionInserted);
+                        recyclerView.scrollToPosition(positionInserted);
+
+                        AMapLocationClient.updatePrivacyShow(getApplicationContext(), true, true);
+                        AMapLocationClient.updatePrivacyAgree(getApplicationContext(), true);
+                        try {
+                            mLocationClient = new AMapLocationClient(getApplicationContext());
+                        } catch (Exception e) {
+                            e.printStackTrace();
+                        }
+                        AMapLocationClientOption mLocationOption = new AMapLocationClientOption();
+                        mLocationOption.setGeoLanguage(AMapLocationClientOption.GeoLanguage.EN);
+                        mLocationOption.setLocationMode(AMapLocationClientOption.AMapLocationMode.Hight_Accuracy);
+                        mLocationOption.setOnceLocation(true);
+                        mLocationOption.setOnceLocationLatest(true);
+                        mLocationOption.setNeedAddress(true);
+                        mLocationClient.setLocationOption(mLocationOption);
+                        mLocationClient.setLocationListener(amapLocation -> {
+                            if (amapLocation != null && amapLocation.getErrorCode() == 0) {
+                                double latitude = Math.round(amapLocation.getLatitude() * 100.0) / 100.0;
+                                double longitude = Math.round(amapLocation.getLongitude() * 100.0) / 100.0;
+                                String address = amapLocation.getAddress();
+                                if (imageFile != null) {
+                                    fetchWeatherData(latitude, longitude, new WeatherTextCallback() {
+                                        @Override
+                                        public void onWeatherTextReceived(String weatherText) {
+                                            imageEditTopic("", weatherText, address, imageFile);
+                                        }
+                                        @Override
+                                        public void onError(Exception e) {
+                                            Log.e("WeatherError", "Failed to get weather data", e);
+                                        }
+                                    });
+                                } else {
+                                    Log.e("FileError", "Failed to create imageFile from imageUri");
+                                }
+                            } else {
+                                Log.e("AmapError", "location Error, ErrCode:" + amapLocation.getErrorCode() + ", errInfo:" + amapLocation.getErrorInfo());
+                            }
+                        });
+                        mLocationClient.startLocation();
                     });
                 }
             }
         };
+
         LocalBroadcastManager.getInstance(this).registerReceiver(imageSelectedReceiver, new IntentFilter("com.fxz.artagent.ACTION_IMAGE_SELECTED"));
 
         windowManager = (WindowManager) getSystemService(WINDOW_SERVICE);
@@ -221,6 +265,7 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
         ll0 = layout.findViewById(R.id.ll_0);
         fl1 = layout.findViewById(R.id.fl_1);
         tvTitle = layout.findViewById(R.id.tv_title);
+        etID = layout.findViewById(R.id.tv_ID);
 
         return_chat.setOnClickListener(view -> {
             ll0.setVisibility(View.GONE);
@@ -435,12 +480,13 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
     }
 
     private void requestImage() {
+        String userID = etID.getText().toString();
         JSONObject data = new JSONObject();
         try {
-            data.put("userID", 123456);
+            data.put("userID", userID);
             data.put("cnt", 0);
-            data.put("width", 200);
-            data.put("height", 200);
+            data.put("width", 512);
+            data.put("height", 512);
 
             JSONArray history = new JSONArray();
             for (MessageBean messageBean : messageBeanList) {
@@ -493,7 +539,6 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
                     recyclerView.scrollToPosition(positionInserted);
                 });
 
-
                 List<Map<String, Object>> history = (List<Map<String, Object>>) resMap.get("history");
                 if (history != null && !history.isEmpty()) {
                     Map<String, Object> lastAssistantMessage = null;
@@ -532,11 +577,12 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
         String combinedText = "Location:["+mapText+"],Phone-Content:["+writeText+"],Facial Expression:["+faceText+"],Weather:["+weatherText+"],Music:["+musicText+"],User command:["+input+"]";
         Log.e(TAG, "predict: " + combinedText);
 
+        String userID = etID.getText().toString();
         // 构建发送的数据
         JSONObject data = new JSONObject();
         try {
             data.put("input", combinedText);
-            data.put("userID", 123456);
+            data.put("userID", userID);
 
             JSONArray history = new JSONArray();
             data.put("history", history);
@@ -601,14 +647,13 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
     }
 
     private void requestArgue() {  // 非第一次请求：返回绘画建议
-        String combinedText = etInput.getText().toString();
-        Log.e(TAG, "predict: " + combinedText);
+        String userID = etID.getText().toString();
 
         // 构建发送的数据
         JSONObject data = new JSONObject();
         try {
-            data.put("input", combinedText);
-            data.put("userID", 123456);
+            data.put("input", "");
+            data.put("userID", userID);
 
             JSONArray history = new JSONArray();
             for (MessageBean messageBean : messageBeanList) {
@@ -688,15 +733,14 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
         //合并所有视图中的文本
         String combinedText = "Location:["+mapText+"],Phone-Content:[],Facial Expression:["+faceText+"],Weather:["+weatherText+"],Music:["+musicText+"],User command:["+input+"]";
         Log.e(TAG, "predict: " + combinedText);
-
+        String userID = etID.getText().toString();
         // 构建发送的数据
         JSONObject data = new JSONObject();
         try {
             data.put("input", combinedText);
             JSONArray history = new JSONArray();
             data.put("history", history);
-            data.put("userID", 123456);
-            Log.e(TAG, "onCreate: data");
+            data.put("userID", userID);
         } catch (JSONException e) {
             e.printStackTrace();
         }
@@ -709,7 +753,6 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
                 .addPart(filePart)
                 .addFormDataPart("data", data.toString());
         MultipartBody multipartBody = multipartBodyBuilder.build();
-        Log.e(TAG, String.valueOf(multipartBody));
         Request request = new Request.Builder()
                 .url("http://166.111.139.116:22231/image_edit_topic")
                 .post(multipartBody)
@@ -777,15 +820,104 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
         });
     }
 
+    private void imageEdit() {  // 与情境无关
+        String userID = etID.getText().toString();
+        String editID = editImageID.getText().toString();  // 修改图片的编号
+        Log.e(TAG, editID);
+
+        // 构建发送的数据
+        JSONObject data = new JSONObject();
+        try {
+            JSONArray history = new JSONArray();
+            for (MessageBean messageBean : messageBeanList) {
+                JSONObject historyItem = new JSONObject();
+                historyItem.put("role", messageBean.getRole());
+                historyItem.put("content", messageBean.getMessage());
+                history.put(historyItem);
+            }
+            data.put("history", history);
+            data.put("userID", userID);
+            data.put("editID", editID);
+        } catch (JSONException e) {
+            e.printStackTrace();
+        }
+
+        post("http://166.111.139.116:22231/gpt4_sd_edit", data.toString(), new Callback() {
+            @Override
+            public void onFailure(@NonNull Call call, @NonNull IOException e) {
+                Log.e(TAG, "onFailure: gpt4_sd_edit", e);
+                e.printStackTrace();
+                handler.post(() -> {
+                    messageBeanList.add(new MessageBean("assistant","gpt4_sd_edit error"));
+                    int positionInserted = chatAdapter.getItemCount() - 1;
+                    chatAdapter.notifyItemInserted(positionInserted);
+                    recyclerView.scrollToPosition(positionInserted);
+                });
+            }
+
+            @Override
+            public void onResponse(@NonNull Call call, @NonNull Response response) throws IOException {
+                if (!response.isSuccessful())
+                    throw new IOException("Unexpected code " + response);
+
+                // 解析服务器的响应
+                final String resStr = Objects.requireNonNull(response.body()).string();
+
+                // 使用 Gson 解析 JSON 数据
+                Gson gson = new Gson();
+                Type type = new TypeToken<Map<String, Object>>() {}.getType();
+                Map<String, Object> resMap = gson.fromJson(resStr, type);
+
+
+                String imageUrl = (String) resMap.get("image_url");
+                Log.e(TAG, imageUrl);
+                // 使用Glide或者其他库从imageUrl加载图像
+                handler.post(() -> {
+                    messageBeanList.add(new MessageBean("assistant", imageUrl, true));
+                    int positionInserted = chatAdapter.getItemCount() - 1;
+                    chatAdapter.notifyItemInserted(positionInserted);
+                    recyclerView.scrollToPosition(positionInserted);
+                });
+
+
+                List<Map<String, Object>> history = (List<Map<String, Object>>) resMap.get("history");
+                if (history != null && !history.isEmpty()) {
+                    Map<String, Object> lastAssistantMessage = null;
+
+                    // 逆向遍历历史记录，寻找最后一条"assistant"的消息
+                    for (int i = history.size() - 1; i >= 0; i--) {
+                        Map<String, Object> record = history.get(i);
+                        if ("assistant".equals(record.get("role"))) {
+                            lastAssistantMessage = record;
+                            break;
+                        }
+                    }
+
+                    if (lastAssistantMessage != null) {
+                        String lastAssistantContent = (String) lastAssistantMessage.get("content");
+                        handler.post(() -> {
+                            messageBeanList.add(new MessageBean("assistant", lastAssistantContent));
+                            int positionInserted = chatAdapter.getItemCount() - 1;
+                            chatAdapter.notifyItemInserted(positionInserted);
+                            recyclerView.scrollToPosition(positionInserted);
+                        });
+                    }
+                }
+            }
+        });
+    }
+
     private View getViewChat() {
         View view = LayoutInflater.from(this).inflate(R.layout.layout_chat, null);
         recyclerView = view.findViewById(R.id.rv_list);
-        TextView ivPaint = view.findViewById(R.id.btn_paint);
+        TextView tvPaint = view.findViewById(R.id.btn_paint);
         TextView tvBackTool = view.findViewById(R.id.btn_back_tool);
         TextView tvClear = view.findViewById(R.id.btn_clear);
+        TextView tvEdit = view.findViewById(R.id.btn_edit);
+        editImageID = view.findViewById(R.id.edit_ID);
         recyclerView.setLayoutManager(new LinearLayoutManager(this));
         recyclerView.setAdapter(chatAdapter);
-        ivPaint.setOnClickListener(v -> {
+        tvPaint.setOnClickListener(v -> {
             handler.post(() -> {
                 messageBeanList.add(new MessageBean("user", "Please generate an image based on our previous art discussion."));
                 int positionInserted = chatAdapter.getItemCount() - 1;
@@ -794,6 +926,15 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
             });
             requestImage();
         });
+        tvEdit.setOnClickListener(v -> {
+            handler.post(() -> {
+                messageBeanList.add(new MessageBean("user", "Please edit the image " + editImageID.getText().toString() + " based on our previous art discussion."));
+                int positionInserted = chatAdapter.getItemCount() - 1;
+                chatAdapter.notifyItemInserted(positionInserted);
+                recyclerView.scrollToPosition(positionInserted);
+            });
+            imageEdit();
+        });
         tvBackTool.setOnClickListener(v -> {
             llTool.setVisibility(View.GONE);
             fl1.setVisibility(View.GONE);
@@ -801,13 +942,11 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
             llTool.setVisibility(View.VISIBLE);
             tvTitle.setText("Tools");
         });
-        tvClear.setOnClickListener(v -> {
-            handler.post(() -> {
-                int itemCount = messageBeanList.size();
-                messageBeanList.clear();
-                chatAdapter.notifyItemRangeRemoved(0, itemCount);
-            });
-        });
+        tvClear.setOnClickListener(v -> handler.post(() -> {
+            int itemCount = messageBeanList.size();
+            messageBeanList.clear();
+            chatAdapter.notifyItemRangeRemoved(0, itemCount);
+        }));
         return view;
     }
 
@@ -1772,5 +1911,41 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
                 }
             }
         });
+    }
+
+    private File uriToFile(Uri uri) {
+        InputStream inputStream = null;
+        try {
+            inputStream = getContentResolver().openInputStream(uri);
+        } catch (FileNotFoundException e) {
+            e.printStackTrace();
+        }
+        String timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss").format(new Date());
+        String imageFileName = "JPEG_" + timeStamp + "_";
+        File storageDir = getExternalFilesDir(Environment.DIRECTORY_PICTURES);
+        File imageFile = null;
+        try {
+            imageFile = File.createTempFile(
+                    imageFileName,  /* prefix */
+                    ".jpg",         /* suffix */
+                    storageDir      /* directory */
+            );
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+        try {
+            OutputStream output = new FileOutputStream(imageFile);
+            byte[] buffer = new byte[4 * 1024]; // or other buffer size
+            int read;
+            while ((read = inputStream.read(buffer)) != -1) {
+                output.write(buffer, 0, read);
+            }
+            output.flush();
+            return imageFile;
+        } catch (Exception e) {
+            e.printStackTrace();  // handle error
+        }
+        return null;
     }
 }
