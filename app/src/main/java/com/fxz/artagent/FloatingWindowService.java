@@ -749,6 +749,33 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
             e.printStackTrace();
         }
 
+        // 获取图像的尺寸，但不加载整个图像到内存中
+        BitmapFactory.Options options = new BitmapFactory.Options();
+        options.inJustDecodeBounds = true;
+        BitmapFactory.decodeFile(imageFile.getAbsolutePath(), options);
+        int imageHeight = options.outHeight;
+        int imageWidth = options.outWidth;
+
+        // 如果高度大于512, 等比缩放
+        if (imageHeight > 512) {
+            float scaleFactor = (float) 512 / imageHeight;
+            int newWidth = Math.round(imageWidth * scaleFactor);
+            int newHeight = Math.round(imageHeight * scaleFactor);
+
+            // 加载图像并重新调整大小
+            Bitmap bitmap = BitmapFactory.decodeFile(imageFile.getAbsolutePath());
+            Bitmap resizedBitmap = Bitmap.createScaledBitmap(bitmap, newWidth, newHeight, false);
+
+            // 保存缩放后的图像替换原图像
+            try {
+                FileOutputStream fos = new FileOutputStream(imageFile);
+                resizedBitmap.compress(Bitmap.CompressFormat.JPEG, 80, fos);
+                fos.close();
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+
         RequestBody requestFile = RequestBody.create(imageFile, MediaType.parse("image/jpg"));
         MultipartBody.Part filePart = MultipartBody.Part.createFormData("image", imageFile.getName(), requestFile);
 
