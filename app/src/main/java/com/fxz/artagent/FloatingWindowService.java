@@ -193,6 +193,7 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
                         chatAdapter.notifyItemInserted(positionInserted);
                         recyclerView.scrollToPosition(positionInserted);
 
+                        tvTitle.setText("生成中，请勿输入文字...");
                         AMapLocationClient.updatePrivacyShow(getApplicationContext(), true, true);
                         AMapLocationClient.updatePrivacyAgree(getApplicationContext(), true);
                         try {
@@ -350,55 +351,57 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
                 int positionInserted = chatAdapter.getItemCount() - 1;
                 chatAdapter.notifyItemInserted(positionInserted);
                 recyclerView.scrollToPosition(positionInserted);
-            });
+                tvTitle.setText("生成中，请勿输入文字...");
 
-            if (messageBeanList.size() == 0) {
-                AMapLocationClient.updatePrivacyShow(getApplicationContext(), true, true);
-                AMapLocationClient.updatePrivacyAgree(getApplicationContext(), true);
-                try {
-                    mLocationClient = new AMapLocationClient(getApplicationContext());
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
-                AMapLocationClientOption mLocationOption = new AMapLocationClientOption();
-//                mLocationOption.setGeoLanguage(AMapLocationClientOption.GeoLanguage.EN);  // 设置为英文
-                mLocationOption.setLocationMode(AMapLocationClientOption.AMapLocationMode.Hight_Accuracy);
-                mLocationOption.setOnceLocation(true);
-                mLocationOption.setOnceLocationLatest(true);
-                mLocationOption.setNeedAddress(true);
-                mLocationClient.setLocationOption(mLocationOption);
-                mLocationClient.setLocationListener(amapLocation -> {
-                    if (amapLocation != null && amapLocation.getErrorCode() == 0) {
-                        double latitude = Math.round(amapLocation.getLatitude() * 100.0) / 100.0;  // 保留两位小数
-                        double longitude = Math.round(amapLocation.getLongitude() * 100.0) / 100.0;  // 保留两位小数
-                        String address = amapLocation.getAddress();
-
-                        fetchWeatherData(latitude, longitude, new WeatherTextCallback() {
-                            @Override
-                            public void onWeatherTextReceived(String weatherText) {
-                                getLatestTexts();
-                                // 从SharedPreferences中获取文本
-                                SharedPreferences prefs = getSharedPreferences(PREFERENCES_NAME, MODE_PRIVATE);
-                                String screenText = prefs.getString(PREFERENCES_KEY, "");
-
-                                // 所有数据都已经获取到，调用 requestTopic
-                                requestTopic(userInput, weatherText, address, screenText);
-                            }
-                            @Override
-                            public void onError(Exception e) {
-                                Log.e("WeatherError", "Failed to get weather data", e);
-                            }
-                        });
-                    } else {
-                        Log.e("AmapError", "location Error, ErrCode:" + amapLocation.getErrorCode() + ", errInfo:" + amapLocation.getErrorInfo());
+                if (messageBeanList.size() == 1) {
+                    AMapLocationClient.updatePrivacyShow(getApplicationContext(), true, true);
+                    AMapLocationClient.updatePrivacyAgree(getApplicationContext(), true);
+                    try {
+                        mLocationClient = new AMapLocationClient(getApplicationContext());
+                    } catch (Exception e) {
+                        e.printStackTrace();
                     }
-                });
-                mLocationClient.startLocation();
-            } else {
-                requestArgue();
-            }
-            etInput.setText("");  // 请求完再清空etInput
-            Log.e(TAG, String.valueOf(messageBeanList.size()));
+                    AMapLocationClientOption mLocationOption = new AMapLocationClientOption();
+//                mLocationOption.setGeoLanguage(AMapLocationClientOption.GeoLanguage.EN);  // 设置为英文
+                    mLocationOption.setLocationMode(AMapLocationClientOption.AMapLocationMode.Hight_Accuracy);
+                    mLocationOption.setOnceLocation(true);
+                    mLocationOption.setOnceLocationLatest(true);
+                    mLocationOption.setNeedAddress(true);
+                    mLocationClient.setLocationOption(mLocationOption);
+                    mLocationClient.setLocationListener(amapLocation -> {
+                        if (amapLocation != null && amapLocation.getErrorCode() == 0) {
+                            double latitude = Math.round(amapLocation.getLatitude() * 100.0) / 100.0;  // 保留两位小数
+                            double longitude = Math.round(amapLocation.getLongitude() * 100.0) / 100.0;  // 保留两位小数
+                            String address = amapLocation.getAddress();
+
+                            fetchWeatherData(latitude, longitude, new WeatherTextCallback() {
+                                @Override
+                                public void onWeatherTextReceived(String weatherText) {
+                                    getLatestTexts();
+                                    // 从SharedPreferences中获取文本
+                                    SharedPreferences prefs = getSharedPreferences(PREFERENCES_NAME, MODE_PRIVATE);
+                                    String screenText = prefs.getString(PREFERENCES_KEY, "");
+
+                                    // 所有数据都已经获取到，调用 requestTopic
+                                    requestTopic(userInput, weatherText, address, screenText);
+                                }
+                                @Override
+                                public void onError(Exception e) {
+                                    Log.e("WeatherError", "Failed to get weather data", e);
+                                }
+                            });
+                        } else {
+                            Log.e("AmapError", "location Error, ErrCode:" + amapLocation.getErrorCode() + ", errInfo:" + amapLocation.getErrorInfo());
+                        }
+                    });
+                    mLocationClient.startLocation();
+                } else {
+                    tvTitle.setText("生成中，请勿输入文字...");
+                    requestArgue();
+                }
+                etInput.setText("");  // 请求完再清空etInput
+                Log.e(TAG, String.valueOf(messageBeanList.size()));
+            });
         });
 
         chatAdapter = new ChatAdapter(messageBeanList);
@@ -561,12 +564,12 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
                             int positionInserted = chatAdapter.getItemCount() - 1;
                             chatAdapter.notifyItemInserted(positionInserted);
                             recyclerView.scrollToPosition(positionInserted);
+                            String imageID = (String) resMap.get("imageID");
+                            editImageID.setText(imageID);
+                            tvTitle.setText("Chat");
                         });
                     }
                 }
-
-                String imageID = (String) resMap.get("imageID");
-                editImageID.setText(imageID);
             }
         });
     }
@@ -645,6 +648,7 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
                     int positionInserted = chatAdapter.getItemCount() - 1;
                     chatAdapter.notifyItemInserted(positionInserted);
                     recyclerView.scrollToPosition(positionInserted);
+                    tvTitle.setText("Chat");
                 });
             }
         });
@@ -666,6 +670,7 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
                 historyItem.put("content", messageBean.getMessage());
                 history.put(historyItem);
             }
+            Log.e("history", String.valueOf(history));
             data.put("history", history);
 
             Log.e(TAG, String.valueOf(history));
@@ -723,6 +728,7 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
                     int positionInserted = chatAdapter.getItemCount() - 1;
                     chatAdapter.notifyItemInserted(positionInserted);
                     recyclerView.scrollToPosition(positionInserted);
+                    tvTitle.setText("Chat");
                 });
             }
         });
@@ -756,24 +762,22 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
         int imageHeight = options.outHeight;
         int imageWidth = options.outWidth;
 
-        // 如果高度大于512, 等比缩放
-        if (imageHeight > 512) {
-            float scaleFactor = (float) 512 / imageHeight;
-            int newWidth = Math.round(imageWidth * scaleFactor);
-            int newHeight = Math.round(imageHeight * scaleFactor);
 
-            // 加载图像并重新调整大小
-            Bitmap bitmap = BitmapFactory.decodeFile(imageFile.getAbsolutePath());
-            Bitmap resizedBitmap = Bitmap.createScaledBitmap(bitmap, newWidth, newHeight, false);
+        float scaleFactor = (float) 512 / imageHeight;
+        int newWidth = Math.round(imageWidth * scaleFactor);
+        int newHeight = Math.round(imageHeight * scaleFactor);
 
-            // 保存缩放后的图像替换原图像
-            try {
-                FileOutputStream fos = new FileOutputStream(imageFile);
-                resizedBitmap.compress(Bitmap.CompressFormat.JPEG, 80, fos);
-                fos.close();
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
+        // 加载图像并重新调整大小
+        Bitmap bitmap = BitmapFactory.decodeFile(imageFile.getAbsolutePath());
+        Bitmap resizedBitmap = Bitmap.createScaledBitmap(bitmap, newWidth, newHeight, false);
+
+        // 保存缩放后的图像替换原图像
+        try {
+            FileOutputStream fos = new FileOutputStream(imageFile);
+            resizedBitmap.compress(Bitmap.CompressFormat.JPEG, 80, fos);
+            fos.close();
+        } catch (Exception e) {
+            e.printStackTrace();
         }
 
         RequestBody requestFile = RequestBody.create(imageFile, MediaType.parse("image/jpg"));
@@ -806,6 +810,7 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
                     int positionInserted = chatAdapter.getItemCount() - 1;
                     chatAdapter.notifyItemInserted(positionInserted);
                     recyclerView.scrollToPosition(positionInserted);
+                    tvTitle.setText("Chat");
                 });
             }
 
@@ -817,6 +822,7 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
                         int positionInserted = chatAdapter.getItemCount() - 1;
                         chatAdapter.notifyItemInserted(positionInserted);
                         recyclerView.scrollToPosition(positionInserted);
+                        tvTitle.setText("Chat");
                     });
                     throw new IOException("Unexpected code " + response);
                 }
@@ -846,9 +852,10 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
                     int positionInserted = chatAdapter.getItemCount() - 1;
                     chatAdapter.notifyItemInserted(positionInserted);
                     recyclerView.scrollToPosition(positionInserted);
+                    tvTitle.setText("Chat");
+                    String imageID = (String) resMap.get("imageID");
+                    editImageID.setText(imageID);
                 });
-                String imageID = (String) resMap.get("imageID");
-                editImageID.setText(imageID);
             }
         });
     }
@@ -933,11 +940,12 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
                             int positionInserted = chatAdapter.getItemCount() - 1;
                             chatAdapter.notifyItemInserted(positionInserted);
                             recyclerView.scrollToPosition(positionInserted);
+                            String imageID = (String) resMap.get("imageID");
+                            editImageID.setText(imageID);
+                            tvTitle.setText("Chat");
                         });
                     }
                 }
-                String imageID = (String) resMap.get("imageID");
-                editImageID.setText(imageID);
             }
         });
     }
@@ -959,6 +967,7 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
                 int positionInserted = chatAdapter.getItemCount() - 1;
                 chatAdapter.notifyItemInserted(positionInserted);
                 recyclerView.scrollToPosition(positionInserted);
+                tvTitle.setText("生成中，请勿输入文字...");
             });
             requestImage();
         });
@@ -969,6 +978,7 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
                 int positionInserted = chatAdapter.getItemCount() - 1;
                 chatAdapter.notifyItemInserted(positionInserted);
                 recyclerView.scrollToPosition(positionInserted);
+                tvTitle.setText("生成中，请勿输入文字...");
             });
             imageEdit();
         });
