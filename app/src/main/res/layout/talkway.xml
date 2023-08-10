@@ -9,7 +9,7 @@
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginBottom="22dp"
+        android:layout_marginBottom="12dp"
         android:orientation="vertical">
 
         <LinearLayout
@@ -19,7 +19,7 @@
             android:background="@drawable/top_rounded"
             android:orientation="vertical"
             android:paddingHorizontal="10dp"
-            android:paddingTop="10dp"
+            android:paddingTop="5dp"
             android:paddingBottom="32dp">
 
             <LinearLayout
@@ -46,8 +46,71 @@
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="0.7"
-                    android:textSize="12sp"
+                    android:textSize="10sp"
                     android:text="123456" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/bottom_layout"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:layout_marginTop="2dp">
+
+                <TextView
+                    android:id="@+id/if_location"
+                    android:layout_width="0dp"
+                    android:layout_height="40dp"
+                    android:drawablePadding="6dp"
+                    android:layout_weight="1"
+                    android:drawableTop="@drawable/resize_location"
+                    android:text="Location"
+                    android:textSize="10sp"
+                    android:gravity="center"/>
+
+                <TextView
+                    android:id="@+id/if_content"
+                    android:layout_width="0dp"
+                    android:layout_height="40dp"
+                    android:drawablePadding="6dp"
+                    android:layout_weight="1"
+                    android:drawableTop="@drawable/resize_content"
+                    android:text="Screen"
+                    android:textSize="10sp"
+                    android:gravity="center"/>
+
+                <TextView
+                    android:id="@+id/if_emotion"
+                    android:layout_width="0dp"
+                    android:layout_height="40dp"
+                    android:drawablePadding="6dp"
+                    android:layout_weight="1"
+                    android:drawableTop="@drawable/resize_emotion"
+                    android:text="Emotion"
+                    android:textSize="10sp"
+                    android:gravity="center"/>
+
+                <TextView
+                    android:id="@+id/if_weather"
+                    android:layout_width="0dp"
+                    android:layout_height="40dp"
+                    android:drawablePadding="6dp"
+                    android:layout_weight="1"
+                    android:drawableTop="@drawable/resize_weather"
+                    android:text="Weather"
+                    android:textSize="10sp"
+                    android:gravity="center"/>
+
+                <TextView
+                    android:id="@+id/if_music"
+                    android:layout_width="0dp"
+                    android:layout_height="40dp"
+                    android:drawablePadding="6dp"
+                    android:layout_weight="1"
+                    android:drawableTop="@drawable/resize_music"
+                    android:text="Music"
+                    android:textSize="10sp"
+                    android:gravity="center"/>
             </LinearLayout>
 
             <FrameLayout
@@ -117,7 +180,8 @@
                             android:layout_weight="1"
                             android:drawableTop="@drawable/ic_icon1"
                             android:gravity="center"
-                            android:text="Content" />
+                            android:text="Content"
+                            android:visibility="gone"/>
 
                         <TextView
                             android:id="@+id/tv_1"
@@ -126,7 +190,8 @@
                             android:layout_weight="1"
                             android:drawableTop="@drawable/ph_map_pin_bold"
                             android:gravity="center"
-                            android:text="Location" />
+                            android:text="Location"
+                            android:visibility="gone"/>
 
                         <TextView
                             android:id="@+id/tv_6"
@@ -135,7 +200,8 @@
                             android:layout_weight="1"
                             android:drawableTop="@drawable/uil_music"
                             android:gravity="center"
-                            android:text="Music" />
+                            android:text="Music"
+                            android:visibility="gone"/>
 
                         <TextView
                             android:id="@+id/tv_7"
@@ -144,7 +210,8 @@
                             android:layout_weight="1"
                             android:drawableTop="@drawable/tabler_run"
                             android:gravity="center"
-                            android:text="Action" />
+                            android:text="Action"
+                            android:visibility="gone"/>
 
 
                     </LinearLayout>
@@ -168,7 +235,6 @@
         </LinearLayout>
     </LinearLayout>
 
-
     <RelativeLayout
         android:id="@+id/ll_con_p"
         android:layout_width="match_parent"
@@ -176,7 +242,6 @@
         android:layout_alignParentBottom="true"
         android:layout_gravity="bottom"
         android:orientation="horizontal">
-
 
         <LinearLayout
             android:layout_width="match_parent"

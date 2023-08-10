@@ -2,7 +2,6 @@
     android:layout_width="match_parent"
     android:layout_height="300dp"
     android:orientation="vertical">
-
     <LinearLayout
         android:id="@+id/linear_top"
         android:layout_width="match_parent"
@@ -12,7 +11,7 @@
         <TextView
             android:id="@+id/btn_back_tool"
             android:layout_width="0dp"
-            android:layout_height="40dp"
+            android:layout_height="35dp"
             android:layout_weight="1"
             android:drawablePadding="6dp"
             android:text="Tools"
@@ -22,7 +21,7 @@
         <TextView
             android:id="@+id/btn_paint"
             android:layout_width="0dp"
-            android:layout_height="40dp"
+            android:layout_height="35dp"
             android:layout_weight="1"
             android:drawablePadding="2dp"
             android:layout_marginEnd="9dp"
@@ -33,7 +32,7 @@
         <TextView
             android:id="@+id/btn_clear"
             android:layout_width="0dp"
-            android:layout_height="40dp"
+            android:layout_height="35dp"
             android:layout_weight="1"
             android:drawablePadding="6dp"
             android:text="Clear"
@@ -43,7 +42,7 @@
         <TextView
             android:id="@+id/btn_edit"
             android:layout_width="0dp"
-            android:layout_height="40dp"
+            android:layout_height="35dp"
             android:drawablePadding="6dp"
             android:layout_weight="0.8"
             android:text="Edit"
@@ -53,16 +52,14 @@
         <EditText
             android:id="@+id/edit_ID"
             android:layout_width="0dp"
-            android:layout_height="40dp"
+            android:layout_height="35dp"
             android:layout_weight="0.3"
             android:textSize="12sp"
             android:text="1"
             android:gravity="center_vertical"/>
     </LinearLayout>
-
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/rv_list"
         android:layout_width="match_parent"
-        android:layout_height="match_parent"/>
-
+        android:layout_height="wrap_content" />
 </LinearLayout>

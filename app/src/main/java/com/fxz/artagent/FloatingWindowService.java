@@ -18,10 +18,13 @@ import android.content.pm.PackageManager;
 import android.content.res.Resources;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.graphics.Color;
 import android.graphics.ImageFormat;
 import android.graphics.PixelFormat;
 import android.graphics.Point;
+import android.graphics.PorterDuff;
 import android.graphics.SurfaceTexture;
+import android.graphics.drawable.Drawable;
 import android.hardware.camera2.CameraAccessException;
 import android.hardware.camera2.CameraCaptureSession;
 import android.hardware.camera2.CameraCharacteristics;
@@ -39,7 +42,6 @@ import android.os.Build;
 import android.os.Environment;
 import android.os.Handler;
 import android.os.IBinder;
-import android.os.Looper;
 import android.os.Process;
 import android.provider.MediaStore;
 import android.text.TextUtils;
@@ -64,9 +66,9 @@ import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.RelativeLayout;
 import android.widget.TextView;
-import android.widget.Toast;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import androidx.core.app.ActivityCompat;
 import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 import androidx.recyclerview.widget.LinearLayoutManager;
@@ -74,6 +76,9 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import com.amap.api.location.AMapLocationClient;
 import com.amap.api.location.AMapLocationClientOption;
+import com.bumptech.glide.Glide;
+import com.bumptech.glide.request.target.CustomTarget;
+import com.bumptech.glide.request.transition.Transition;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import com.google.gson.reflect.TypeToken;
@@ -102,6 +107,7 @@ import java.util.Objects;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 import okhttp3.Call;
 import okhttp3.Callback;
@@ -217,7 +223,12 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
                                     fetchWeatherData(latitude, longitude, new WeatherTextCallback() {
                                         @Override
                                         public void onWeatherTextReceived(String weatherText) {
-                                            imageEditTopic("", weatherText, address, imageFile);
+                                            getLatestTexts();
+                                            // 从SharedPreferences中获取文本
+                                            SharedPreferences prefs = getSharedPreferences(PREFERENCES_NAME, MODE_PRIVATE);
+                                            String screenText = prefs.getString(PREFERENCES_KEY, "");
+                                            // 所有数据都已经获取到，调用 requestTopic
+                                            imageEditTopic("", weatherText, address, imageFile, screenText);
                                         }
                                         @Override
                                         public void onError(Exception e) {
@@ -268,6 +279,17 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
         fl1 = layout.findViewById(R.id.fl_1);
         tvTitle = layout.findViewById(R.id.tv_title);
         etID = layout.findViewById(R.id.tv_ID);
+        TextView ifLocation = layout.findViewById(R.id.if_location);
+        TextView ifWeather = layout.findViewById(R.id.if_weather);
+        TextView ifContent = layout.findViewById(R.id.if_content);
+        TextView ifEmotion = layout.findViewById(R.id.if_emotion);
+        TextView ifMusic = layout.findViewById(R.id.if_music);
+
+        ifLocation.setVisibility(View.GONE);
+        ifWeather.setVisibility(View.GONE);
+        ifContent.setVisibility(View.GONE);
+        ifEmotion.setVisibility(View.GONE);
+        ifMusic.setVisibility(View.GONE);
 
         return_chat.setOnClickListener(view -> {
             ll0.setVisibility(View.GONE);
@@ -275,6 +297,11 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
             tvTitle.setText("Chat");
             fl1.removeAllViews();
             fl1.addView(getViewChat(), new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT));
+            ifLocation.setVisibility(View.VISIBLE);
+            ifWeather.setVisibility(View.VISIBLE);
+            ifContent.setVisibility(View.VISIBLE);
+            ifEmotion.setVisibility(View.VISIBLE);
+            ifMusic.setVisibility(View.VISIBLE);
         });
 
         tv1.setOnClickListener(view -> {
@@ -291,6 +318,11 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
             fl1.setVisibility(View.VISIBLE);
             tvTitle.setText("Emotion");
             fl1.removeAllViews();
+            ifLocation.setVisibility(View.GONE);
+            ifWeather.setVisibility(View.GONE);
+            ifContent.setVisibility(View.GONE);
+            ifEmotion.setVisibility(View.GONE);
+            ifMusic.setVisibility(View.GONE);
             fl1.addView(getView4(), new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT));
         });
         tv3.setOnClickListener(view -> {
@@ -307,6 +339,11 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
             tvTitle.setText("Camera");
             fl1.removeAllViews();
             fl1.addView(getView6(), new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT));
+            ifLocation.setVisibility(View.VISIBLE);
+            ifWeather.setVisibility(View.VISIBLE);
+            ifContent.setVisibility(View.VISIBLE);
+            ifEmotion.setVisibility(View.VISIBLE);
+            ifMusic.setVisibility(View.VISIBLE);
         });
         tv5.setOnClickListener(view -> {  // 找到系统相册
             ll0.setVisibility(View.GONE);
@@ -314,7 +351,11 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
             tvTitle.setText("Chat");
             fl1.removeAllViews();
             fl1.addView(getViewChat(), new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT));
-
+            ifLocation.setVisibility(View.VISIBLE);
+            ifWeather.setVisibility(View.VISIBLE);
+            ifContent.setVisibility(View.VISIBLE);
+            ifEmotion.setVisibility(View.VISIBLE);
+            ifMusic.setVisibility(View.VISIBLE);
             Intent intent = new Intent(this, ImagePickerActivity.class);
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
             startActivity(intent);
@@ -343,6 +384,11 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
                 tvTitle.setText("Chat");
                 fl1.removeAllViews();
                 fl1.addView(getViewChat(), new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT));
+                ifLocation.setVisibility(View.VISIBLE);
+                ifWeather.setVisibility(View.VISIBLE);
+                ifContent.setVisibility(View.VISIBLE);
+                ifEmotion.setVisibility(View.VISIBLE);
+                ifMusic.setVisibility(View.VISIBLE);
             }
             String userInput = etInput.getText().toString();
 
@@ -396,7 +442,6 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
                     });
                     mLocationClient.startLocation();
                 } else {
-                    tvTitle.setText("生成中，请勿输入文字...");
                     requestArgue();
                 }
                 etInput.setText("");  // 请求完再清空etInput
@@ -570,6 +615,16 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
                         });
                     }
                 }
+                Glide.with(getApplicationContext()).asBitmap().load(imageUrl).into(new CustomTarget<Bitmap>() {
+                    @Override
+                    public void onResourceReady(@NonNull Bitmap resource, @Nullable Transition<? super Bitmap> transition) {
+                        saveImageToGallerySWN(getApplicationContext(), resource);
+                    }
+                    @Override
+                    public void onLoadCleared(@Nullable Drawable placeholder) {
+                        Log.e(TAG, "url存储本地相册失败");
+                    }
+                });
             }
         });
     }
@@ -617,10 +672,12 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
             @Override
             public void onResponse(@NonNull Call call, @NonNull Response response) throws IOException {
                 if (!response.isSuccessful()) {
-                    messageBeanList.add(new MessageBean("assistant", "gpt4_mode_2 onResponse Error"));
-                    int positionInserted = chatAdapter.getItemCount() - 1;
-                    chatAdapter.notifyItemInserted(positionInserted);
-                    recyclerView.scrollToPosition(positionInserted);
+                    handler.post(() -> {
+                        messageBeanList.add(new MessageBean("assistant", "gpt4_mode_2 onResponse Error"));
+                        int positionInserted = chatAdapter.getItemCount() - 1;
+                        chatAdapter.notifyItemInserted(positionInserted);
+                        recyclerView.scrollToPosition(positionInserted);
+                    });
                     throw new IOException("Unexpected code " + response);
                 }
 
@@ -633,6 +690,11 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
                 Map<String, Object> resMap = gson.fromJson(resStr, type);
 
                 List<Map<String, String>> history = (List<Map<String, String>>) resMap.get("history");
+                List<Double> stanVecRaw = (List<Double>) resMap.get("stanVec");
+                List<Integer> stanVec = stanVecRaw.stream().map(Double::intValue).collect(Collectors.toList());
+                List<Double> ranVecRaw = (List<Double>) resMap.get("ranVec");
+                List<Integer> ranVec = ranVecRaw.stream().map(Double::intValue).collect(Collectors.toList());
+
                 String assistantContent = "";
                 for (Map<String, String> item : history) {
                     if (item.get("role").equals("assistant")) {
@@ -649,6 +711,7 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
                     chatAdapter.notifyItemInserted(positionInserted);
                     recyclerView.scrollToPosition(positionInserted);
                     tvTitle.setText("Chat");
+                    changeColors(stanVec, ranVec, layout);
                 });
             }
         });
@@ -734,14 +797,14 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
         });
     }
 
-    private void imageEditTopic(String input, String weatherText, String mapText, File imageFile) {  // 暂时不考虑user command只给评价和推荐
+    private void imageEditTopic(String input, String weatherText, String mapText, File imageFile, String writeText) {  // 暂时不考虑user command只给评价和推荐
         // 上传图片给建议，和屏幕文本无关，但为了不重写prompt，直接令其为空
 //        String faceText = faceView.getText().toString();
 //        String musicText = musicView.getText().toString();
         String faceText = "";
         String musicText = "";
         //合并所有视图中的文本
-        String combinedText = "Location:["+mapText+"],Phone-Content:[],Facial Expression:["+faceText+"],Weather:["+weatherText+"],Music:["+musicText+"],User command:["+input+"]";
+        String combinedText = "Location:["+mapText+"],Phone-Content:["+writeText+"],Facial Expression:["+faceText+"],Weather:["+weatherText+"],Music:["+musicText+"],User command:["+input+"]";
         Log.e(TAG, "predict: " + combinedText);
         String userID = etID.getText().toString();
         // 构建发送的数据
@@ -837,6 +900,12 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
                 Map<String, Object> resMap = gson.fromJson(resStr, type);
 
                 List<Map<String, String>> history = (List<Map<String, String>>) resMap.get("history");
+                List<Double> stanVecRaw = (List<Double>) resMap.get("stanVec");
+                List<Integer> stanVec = stanVecRaw.stream().map(Double::intValue).collect(Collectors.toList());
+                List<Double> ranVecRaw = (List<Double>) resMap.get("ranVec");
+                List<Integer> ranVec = ranVecRaw.stream().map(Double::intValue).collect(Collectors.toList());
+
+
                 String assistantContent = "";
                 for (Map<String, String> item : history) {
                     if (item.get("role").equals("assistant")) {
@@ -855,6 +924,7 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
                     tvTitle.setText("Chat");
                     String imageID = (String) resMap.get("imageID");
                     editImageID.setText(imageID);
+                    changeColors(stanVec, ranVec, layout);
                 });
             }
         });
@@ -899,15 +969,12 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
             public void onResponse(@NonNull Call call, @NonNull Response response) throws IOException {
                 if (!response.isSuccessful())
                     throw new IOException("Unexpected code " + response);
-
                 // 解析服务器的响应
                 final String resStr = Objects.requireNonNull(response.body()).string();
-
                 // 使用 Gson 解析 JSON 数据
                 Gson gson = new Gson();
                 Type type = new TypeToken<Map<String, Object>>() {}.getType();
                 Map<String, Object> resMap = gson.fromJson(resStr, type);
-
 
                 String imageUrl = (String) resMap.get("image_url");
                 Log.e(TAG, imageUrl);
@@ -918,7 +985,6 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
                     chatAdapter.notifyItemInserted(positionInserted);
                     recyclerView.scrollToPosition(positionInserted);
                 });
-
 
                 List<Map<String, Object>> history = (List<Map<String, Object>>) resMap.get("history");
                 if (history != null && !history.isEmpty()) {
@@ -946,9 +1012,75 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
                         });
                     }
                 }
+                Glide.with(getApplicationContext()).asBitmap().load(imageUrl).into(new CustomTarget<Bitmap>() {
+                    @Override
+                    public void onResourceReady(@NonNull Bitmap resource, @Nullable Transition<? super Bitmap> transition) {
+                        saveImageToGallerySWN(getApplicationContext(), resource);
+                    }
+                    @Override
+                    public void onLoadCleared(@Nullable Drawable placeholder) {
+                        Log.e(TAG, "url存储本地相册失败");
+                    }
+                });
             }
         });
     }
+
+    private void changeColors(List<Integer> stanVec, List<Integer> ranVec, View view) {
+        int defaultTextColor = Color.parseColor("#61a07f");
+        int defaultIconColor = Color.parseColor("#61a07f");  // 绿色
+        int defaultBgColor = Color.parseColor("#e8f3dc");
+
+        int diffTextColor = Color.parseColor("#1296db");
+        int diffIconColor = Color.parseColor("#1296db");  //  蓝色
+        int diffBgColor = Color.parseColor("#d2eefd");
+
+        int zeroToOneTextColor = Color.parseColor("#9c961d");
+        int zeroToOneIconColor = Color.parseColor("#9c961d");
+        int zeroToOneBgColor = Color.parseColor("#fdf8bb");  // 黄色
+
+        int TextColor = Color.parseColor("#80839F");
+        int BgColor = Color.WHITE;
+
+        TextView[] textViews = {
+                view.findViewById(R.id.if_location),
+                view.findViewById(R.id.if_content),
+                view.findViewById(R.id.if_emotion),
+                view.findViewById(R.id.if_weather),
+                view.findViewById(R.id.if_music)
+        };
+
+        for (int i = 0; i < textViews.length && i < stanVec.size(); i++) {
+            Drawable icon = textViews[i].getCompoundDrawables()[1];
+
+            if (stanVec.get(i) == 1 && ranVec.get(i) == 1) {
+                textViews[i].setTextColor(defaultTextColor);
+                if (icon != null) {
+                    icon.setColorFilter(defaultIconColor, PorterDuff.Mode.SRC_IN);
+                }
+                textViews[i].setBackgroundColor(defaultBgColor);
+            } else if (stanVec.get(i) == 1 && ranVec.get(i) == 0) {
+                textViews[i].setTextColor(diffTextColor);
+                if (icon != null) {
+                    icon.setColorFilter(diffIconColor, PorterDuff.Mode.SRC_IN);
+                }
+                textViews[i].setBackgroundColor(diffBgColor);
+            } else if (stanVec.get(i) == 0 && ranVec.get(i) == 1) {
+                textViews[i].setTextColor(zeroToOneTextColor);
+                if (icon != null) {
+                    icon.setColorFilter(zeroToOneIconColor, PorterDuff.Mode.SRC_IN);
+                }
+                textViews[i].setBackgroundColor(zeroToOneBgColor);
+            } else if (stanVec.get(i) == 0 && ranVec.get(i) == 0) {
+                textViews[i].setTextColor(TextColor);
+                if (icon != null) {
+                    icon.clearColorFilter(); // 移除颜色滤镜
+                }
+                textViews[i].setBackgroundColor(BgColor);
+            }
+        }
+    }
+
 
     private View getViewChat() {
         View view = LayoutInflater.from(this).inflate(R.layout.layout_chat, null);
@@ -1602,7 +1734,12 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
                             fetchWeatherData(latitude, longitude, new WeatherTextCallback() {
                                 @Override
                                 public void onWeatherTextReceived(String weatherText) {
-                                    imageEditTopic("", weatherText, address, imageFile);
+                                    getLatestTexts();
+                                    // 从SharedPreferences中获取文本
+                                    SharedPreferences prefs = getSharedPreferences(PREFERENCES_NAME, MODE_PRIVATE);
+                                    String screenText = prefs.getString(PREFERENCES_KEY, "");
+                                    // 所有数据都已经获取到，调用 requestTopic
+                                    imageEditTopic("", weatherText, address, imageFile, screenText);
                                 }
                                 @Override
                                 public void onError(Exception e) {
@@ -1911,7 +2048,7 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
     private void getLatestTexts() {
         List<String> latestTexts = TextAccessibilityService.getLatestTexts();
         saveTextsToPreferences(latestTexts);
-        new Handler(Looper.getMainLooper()).postDelayed(() -> Toast.makeText(FloatingWindowService.this, "Screen Content Saved", Toast.LENGTH_SHORT).show(), 0);
+//        new Handler(Looper.getMainLooper()).postDelayed(() -> Toast.makeText(FloatingWindowService.this, "Screen Content Saved", Toast.LENGTH_SHORT).show(), 0);
     }
 
     // 将最近获取的文本保存到 SharedPreferences
