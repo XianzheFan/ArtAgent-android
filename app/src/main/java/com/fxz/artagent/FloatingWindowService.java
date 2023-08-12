@@ -141,6 +141,11 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
     FrameLayout fl1, flFrame;
     View.OnTouchListener onTouchListener;
     Handler handler = new Handler();
+    private boolean isLocationGray = false;
+    private boolean isWeatherGray = false;
+    private boolean isContentGray = false;
+    private boolean isEmotionGray = false;
+    private boolean isMusicGray = false;
 
     private OkHttpClient buildHttpClient() {  // 天气client
         return new OkHttpClient.Builder()
@@ -297,6 +302,127 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
         ifContent.setVisibility(View.GONE);
         ifEmotion.setVisibility(View.GONE);
         ifMusic.setVisibility(View.GONE);
+
+        // 标志位，初始设置为false，表示原始状态
+        ifLocation.setOnClickListener(view -> {
+            int originTextColor = Color.parseColor("#80839F");
+            int originBgColor = Color.WHITE;
+            int TextColor = Color.parseColor("#cdcdcd");
+            int IconColor = Color.parseColor("#cdcdcd");  // 灰色
+            int BgColor = Color.parseColor("#e6e6e6");
+            Drawable icon = ifLocation.getCompoundDrawables()[1];
+            // 根据isGray的状态进行颜色的切换
+            if (!isLocationGray) {
+                ifLocation.setTextColor(TextColor);
+                if (icon != null) {
+                    icon.setColorFilter(IconColor, PorterDuff.Mode.SRC_IN);
+                }
+                ifLocation.setBackgroundColor(BgColor);
+            } else {
+                ifLocation.setTextColor(originTextColor);
+                if (icon != null) {
+                    icon.clearColorFilter(); // 移除颜色滤镜
+                }
+                ifLocation.setBackgroundColor(originBgColor);
+            }
+            isLocationGray = !isLocationGray;  // 切换标志位
+        });
+
+        ifWeather.setOnClickListener(view -> {
+            int originTextColor = Color.parseColor("#80839F");
+            int originBgColor = Color.WHITE;
+            int TextColor = Color.parseColor("#cdcdcd");
+            int IconColor = Color.parseColor("#cdcdcd");  // 灰色
+            int BgColor = Color.parseColor("#e6e6e6");
+            Drawable icon = ifWeather.getCompoundDrawables()[1];
+            // 根据isGray的状态进行颜色的切换
+            if (!isWeatherGray) {
+                ifWeather.setTextColor(TextColor);
+                if (icon != null) {
+                    icon.setColorFilter(IconColor, PorterDuff.Mode.SRC_IN);
+                }
+                ifWeather.setBackgroundColor(BgColor);
+            } else {
+                ifWeather.setTextColor(originTextColor);
+                if (icon != null) {
+                    icon.clearColorFilter(); // 移除颜色滤镜
+                }
+                ifWeather.setBackgroundColor(originBgColor);
+            }
+            isWeatherGray = !isWeatherGray;  // 切换标志位
+        });
+
+        ifContent.setOnClickListener(view -> {
+            int originTextColor = Color.parseColor("#80839F");
+            int originBgColor = Color.WHITE;
+            int TextColor = Color.parseColor("#cdcdcd");
+            int IconColor = Color.parseColor("#cdcdcd");  // 灰色
+            int BgColor = Color.parseColor("#e6e6e6");
+            Drawable icon = ifContent.getCompoundDrawables()[1];
+            // 根据isGray的状态进行颜色的切换
+            if (!isContentGray) {
+                ifContent.setTextColor(TextColor);
+                if (icon != null) {
+                    icon.setColorFilter(IconColor, PorterDuff.Mode.SRC_IN);
+                }
+                ifContent.setBackgroundColor(BgColor);
+            } else {
+                ifContent.setTextColor(originTextColor);
+                if (icon != null) {
+                    icon.clearColorFilter(); // 移除颜色滤镜
+                }
+                ifContent.setBackgroundColor(originBgColor);
+            }
+            isContentGray = !isContentGray;  // 切换标志位
+        });
+
+        ifEmotion.setOnClickListener(view -> {
+            int originTextColor = Color.parseColor("#80839F");
+            int originBgColor = Color.WHITE;
+            int TextColor = Color.parseColor("#cdcdcd");
+            int IconColor = Color.parseColor("#cdcdcd");  // 灰色
+            int BgColor = Color.parseColor("#e6e6e6");
+            Drawable icon = ifEmotion.getCompoundDrawables()[1];
+            // 根据isGray的状态进行颜色的切换
+            if (!isEmotionGray) {
+                ifEmotion.setTextColor(TextColor);
+                if (icon != null) {
+                    icon.setColorFilter(IconColor, PorterDuff.Mode.SRC_IN);
+                }
+                ifEmotion.setBackgroundColor(BgColor);
+            } else {
+                ifEmotion.setTextColor(originTextColor);
+                if (icon != null) {
+                    icon.clearColorFilter(); // 移除颜色滤镜
+                }
+                ifEmotion.setBackgroundColor(originBgColor);
+            }
+            isEmotionGray = !isEmotionGray;  // 切换标志位
+        });
+
+        ifMusic.setOnClickListener(view -> {
+            int originTextColor = Color.parseColor("#80839F");
+            int originBgColor = Color.WHITE;
+            int TextColor = Color.parseColor("#cdcdcd");
+            int IconColor = Color.parseColor("#cdcdcd");  // 灰色
+            int BgColor = Color.parseColor("#e6e6e6");
+            Drawable icon = ifMusic.getCompoundDrawables()[1];
+            // 根据isGray的状态进行颜色的切换
+            if (!isMusicGray) {
+                ifMusic.setTextColor(TextColor);
+                if (icon != null) {
+                    icon.setColorFilter(IconColor, PorterDuff.Mode.SRC_IN);
+                }
+                ifMusic.setBackgroundColor(BgColor);
+            } else {
+                ifMusic.setTextColor(originTextColor);
+                if (icon != null) {
+                    icon.clearColorFilter(); // 移除颜色滤镜
+                }
+                ifMusic.setBackgroundColor(originBgColor);
+            }
+            isMusicGray = !isMusicGray;  // 切换标志位
+        });
 
         return_chat.setOnClickListener(view -> {
             ll0.setVisibility(View.GONE);
@@ -664,6 +790,11 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
 //        String musicText = musicView.getText().toString();
         String musicText = "";
 
+        if(isLocationGray) mapText = "";
+        if(isContentGray) writeText = "";
+        if(isEmotionGray) faceText = "";
+        if(isWeatherGray) weatherText = "";
+        if(isMusicGray) musicText = "";
         //合并所有视图中的文本
         String combinedText = "Location:["+mapText+"],Phone-Content:["+writeText+"],Facial Expression:["+faceText+"],Weather:["+weatherText+"],Music:["+musicText+"],User command:["+input+"]";
         Log.e(TAG, "predict: " + combinedText);
@@ -833,6 +964,11 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
         String faceText = "happiness";
         String musicText = "";
         //合并所有视图中的文本
+        if(isLocationGray) mapText = "";
+        if(isContentGray) writeText = "";
+        if(isEmotionGray) faceText = "";
+        if(isWeatherGray) weatherText = "";
+        if(isMusicGray) musicText = "";
         String combinedText = "Location:["+mapText+"],Phone-Content:["+writeText+"],Facial Expression:["+faceText+"],Weather:["+weatherText+"],Music:["+musicText+"],User command:["+input+"]";
         Log.e(TAG, "predict: " + combinedText);
         String userID = etID.getText().toString();
