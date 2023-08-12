@@ -47,7 +47,7 @@
                     android:layout_height="wrap_content"
                     android:layout_weight="0.7"
                     android:textSize="10sp"
-                    android:text="123456" />
+                    android:text="1234567" />
             </LinearLayout>
 
             <LinearLayout
@@ -156,14 +156,7 @@
                             android:gravity="center"
                             android:text="Gallery" />
 
-                        <TextView
-                            android:id="@+id/tv_2"
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:drawableTop="@drawable/ic_emtion"
-                            android:gravity="center"
-                            android:text="Emotion" />
+
 
                     </LinearLayout>
 
@@ -172,6 +165,23 @@
                         android:layout_height="wrap_content"
                         android:layout_marginTop="10dp"
                         android:orientation="horizontal">
+
+                        <TextView
+                            android:id="@+id/tv_2"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:drawableTop="@drawable/ic_emtion"
+                            android:gravity="center"
+                            android:text="Emotion" />
+                        <TextView
+                            android:id="@+id/tv_drawing"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:drawableTop="@drawable/resize_sketchpad"
+                            android:gravity="center"
+                            android:text="Sketchpad" />
 
                         <TextView
                             android:id="@+id/tv_3"

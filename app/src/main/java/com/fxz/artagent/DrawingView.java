@@ -6,9 +6,13 @@ import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Path;
+import android.provider.MediaStore;
 import android.util.AttributeSet;
 import android.view.MotionEvent;
 import android.view.View;
+import android.widget.Toast;
+
+import java.util.UUID;
 
 public class DrawingView extends View {
 
@@ -22,11 +26,27 @@ public class DrawingView extends View {
         setupDrawing();
     }
 
-    public void clearCanvas() {
+    public void clearCanvas() {  // 清除画板
         drawCanvas.drawColor(Color.WHITE);
         invalidate();
     }
 
+    public void setBrushSize(float newSize) {  // 不同画笔大小
+        drawPaint.setStrokeWidth(newSize);
+    }
+
+    public float getBrushSize() {
+        return drawPaint.getStrokeWidth();
+    }
+
+    public void setEraser() {
+        drawPaint.setColor(Color.WHITE); //或者其他背景颜色
+        drawPaint.setStrokeWidth(40);    //可以设置为较大的值
+    }
+
+    public Bitmap getCanvasBitmap() {
+        return canvasBitmap;
+    }
 
     private void setupDrawing() {
         drawPath = new Path();
@@ -34,7 +54,7 @@ public class DrawingView extends View {
 
         drawPaint.setColor(Color.BLACK); //初始颜色
         drawPaint.setAntiAlias(true); //防止边缘锯齿
-        drawPaint.setStrokeWidth(5); //画笔宽度
+        drawPaint.setStrokeWidth(40); //画笔宽度
         drawPaint.setStyle(Paint.Style.STROKE); //空心
         drawPaint.setStrokeJoin(Paint.Join.ROUND);
         drawPaint.setStrokeCap(Paint.Cap.ROUND);
