@@ -182,6 +182,8 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
     List<MessageBean> messageBeanList = new ArrayList<>();  // 不需要输出图片路径，在 content 里面就是路径，只是显示成图片而已
     ChatAdapter chatAdapter;
     RecyclerView recyclerView;
+    MusicRecognition musicRecognition;
+
 
     private BroadcastReceiver imageSelectedReceiver;  // 从相册里选取图片发送
     @Override
@@ -192,6 +194,48 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
     @Override
     public void onCreate() {
         super.onCreate();
+        musicRecognition = new MusicRecognition(this);
+        musicRecognition.setListener(new IACRCloudListener() {
+            @Override
+            public void onResult(ACRCloudResult acrCloudResult) {
+                musicRecognition.reset();
+                String tres = "\n";
+                String result = acrCloudResult.getResult();
+                try {
+                    JSONObject j = new JSONObject(result);
+                    JSONObject j1 = j.getJSONObject("status");
+                    int j2 = j1.getInt("code");
+                    if(j2 == 0){
+                        JSONObject metadata = j.getJSONObject("metadata");
+                        //
+                        if (metadata.has("music")) {
+                            JSONArray musics = metadata.getJSONArray("music");
+                            for(int i=0; i<musics.length(); i++) {
+                                JSONObject tt = (JSONObject) musics.get(i);
+                                String title = tt.getString("title");
+                                JSONArray artistt = tt.getJSONArray("artists");
+                                JSONObject art = (JSONObject) artistt.get(0);
+                                String artist = art.getString("name");
+                                tres = tres + (i+1) + ".  Title: " + title + "    Artist: " + artist + "\n";
+                            }
+                        }
+
+                        tres = tres + "\n\n" + result;
+                    }else{
+                        tres = result;
+                    }
+                } catch (JSONException e) {
+                    tres = result;
+                    e.printStackTrace();
+                }
+                Log.e(TAG, tres);
+            }
+
+            @Override
+            public void onVolumeChanged(double v) {
+
+            }
+        });
         imageSelectedReceiver = new BroadcastReceiver() {
             @Override
             public void onReceive(Context context, Intent intent) {
@@ -496,49 +540,7 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
             startActivity(intent);
         });
         tv6.setOnClickListener(view -> {
-            MusicRecognition recognition = new MusicRecognition(this);
-            recognition.setListener(new IACRCloudListener() {
-                @Override
-                public void onResult(ACRCloudResult acrCloudResult) {
-                    recognition.reset();
-                    String tres = "\n";
-                    String result = acrCloudResult.getResult();
-                    try {
-                        JSONObject j = new JSONObject(result);
-                        JSONObject j1 = j.getJSONObject("status");
-                        int j2 = j1.getInt("code");
-                        if(j2 == 0){
-                            JSONObject metadata = j.getJSONObject("metadata");
-                            //
-                            if (metadata.has("music")) {
-                                JSONArray musics = metadata.getJSONArray("music");
-                                for(int i=0; i<musics.length(); i++) {
-                                    JSONObject tt = (JSONObject) musics.get(i);
-                                    String title = tt.getString("title");
-                                    JSONArray artistt = tt.getJSONArray("artists");
-                                    JSONObject art = (JSONObject) artistt.get(0);
-                                    String artist = art.getString("name");
-                                    tres = tres + (i+1) + ".  Title: " + title + "    Artist: " + artist + "\n";
-                                }
-                            }
-
-                            tres = tres + "\n\n" + result;
-                        }else{
-                            tres = result;
-                        }
-                    } catch (JSONException e) {
-                        tres = result;
-                        e.printStackTrace();
-                    }
-                    Log.e(TAG, tres);
-                }
-
-                @Override
-                public void onVolumeChanged(double v) {
-
-                }
-            });
-            recognition.startRecognize();
+            musicRecognition.startRecognize();
 //            ll0.setVisibility(View.GONE);
 //            fl1.setVisibility(View.VISIBLE);
 //            tvTitle.setText("Music");
