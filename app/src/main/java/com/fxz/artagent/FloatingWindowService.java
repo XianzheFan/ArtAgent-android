@@ -77,6 +77,8 @@ import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
+import com.acrcloud.rec.ACRCloudResult;
+import com.acrcloud.rec.IACRCloudListener;
 import com.amap.api.location.AMapLocationClient;
 import com.amap.api.location.AMapLocationClientOption;
 import com.bumptech.glide.Glide;
@@ -494,11 +496,54 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
             startActivity(intent);
         });
         tv6.setOnClickListener(view -> {
-            ll0.setVisibility(View.GONE);
-            fl1.setVisibility(View.VISIBLE);
-            tvTitle.setText("Music");
-            fl1.removeAllViews();
-            fl1.addView(getView2(), new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT));
+            MusicRecognition recognition = new MusicRecognition(this);
+            recognition.setListener(new IACRCloudListener() {
+                @Override
+                public void onResult(ACRCloudResult acrCloudResult) {
+                    recognition.reset();
+                    String tres = "\n";
+                    String result = acrCloudResult.getResult();
+                    try {
+                        JSONObject j = new JSONObject(result);
+                        JSONObject j1 = j.getJSONObject("status");
+                        int j2 = j1.getInt("code");
+                        if(j2 == 0){
+                            JSONObject metadata = j.getJSONObject("metadata");
+                            //
+                            if (metadata.has("music")) {
+                                JSONArray musics = metadata.getJSONArray("music");
+                                for(int i=0; i<musics.length(); i++) {
+                                    JSONObject tt = (JSONObject) musics.get(i);
+                                    String title = tt.getString("title");
+                                    JSONArray artistt = tt.getJSONArray("artists");
+                                    JSONObject art = (JSONObject) artistt.get(0);
+                                    String artist = art.getString("name");
+                                    tres = tres + (i+1) + ".  Title: " + title + "    Artist: " + artist + "\n";
+                                }
+                            }
+
+                            tres = tres + "\n\n" + result;
+                        }else{
+                            tres = result;
+                        }
+                    } catch (JSONException e) {
+                        tres = result;
+                        e.printStackTrace();
+                    }
+                    Log.e(TAG, tres);
+                }
+
+                @Override
+                public void onVolumeChanged(double v) {
+
+                }
+            });
+            recognition.startRecognize();
+//            ll0.setVisibility(View.GONE);
+//            fl1.setVisibility(View.VISIBLE);
+//            tvTitle.setText("Music");
+//            fl1.removeAllViews();
+//            fl1.addView(getView2(), new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT));
         });
         tv7.setOnClickListener(view -> {
             ll0.setVisibility(View.GONE);
