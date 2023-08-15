@@ -57,7 +57,16 @@
             android:name=".FloatingWindowService"
             android:enabled="true"
             android:exported="true"
-            android:foregroundServiceType="mediaProjection" />
+            android:foregroundServiceType="mediaProjection">
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <action android:name="android.intent.action.SEND_MULTIPLE" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="image/*" />
+            </intent-filter>
+<!--            可以分享图片-->
+        </service>
+
 
         <activity
             android:name=".MainActivity"
