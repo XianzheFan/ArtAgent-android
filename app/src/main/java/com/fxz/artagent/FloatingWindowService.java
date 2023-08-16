@@ -4,7 +4,6 @@ import android.Manifest;
 import android.animation.Animator;
 import android.animation.AnimatorListenerAdapter;
 import android.annotation.SuppressLint;
-import android.app.AlertDialog;
 import android.app.Notification;
 import android.app.Service;
 import android.content.BroadcastReceiver;
@@ -63,10 +62,12 @@ import android.view.WindowManager;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.EditText;
 import android.widget.FrameLayout;
+import android.widget.GridView;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.RelativeLayout;
 import android.widget.SeekBar;
+import android.widget.SimpleAdapter;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -104,6 +105,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -130,17 +132,19 @@ import com.acrcloud.rec.IACRCloudListener;
 public class FloatingWindowService extends Service implements TextAccessibilityService.TextCallback {
     private WindowManager windowManager;
     private View layout;  // 整个工具栏
+    private String emotionResult = "neutral";
     public static final String CHANNEL_ID = "FloatingWindowServiceChannel";
     public static final String PREFERENCES_NAME = "SavedTexts";
     public static final String PREFERENCES_KEY = "texts";
     EditText etInput, etID, editImageID;
-    ImageView ivSend, ivMirco, ivDotView;
-    TextView return_chat, tv1, tv2, tv3, tv4, tv5, tv6, tv7, tvTitle;
+    ImageView ivSend, ivMirco, ivDotView, btnAdd;
+    TextView return_chat, tv2, tv4, tv5, tv6, tvTitle, tvPaint, tvClear, tvEdit, tvTopic;
     private int initialX, initialY;
     private float initialTouchX, initialTouchY;
     private boolean isOtherLayoutVisible = true;
     private LinearLayout llCon1, llTool, ll0;
-    FrameLayout fl1, flFrame;
+    FrameLayout fl1;
+    RelativeLayout flFrame;
     View.OnTouchListener onTouchListener;
     Handler handler = new Handler();
     private boolean isLocationGray = false;
@@ -155,6 +159,9 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
                 .connectTimeout(600, TimeUnit.SECONDS)
                 .build();
     }
+
+    private List<Map<String, Object>> data_list;
+    private boolean showView = false;
 
     OkHttpClient weatherClient = buildHttpClient();
     private AMapLocationClient mLocationClient = null;
@@ -184,84 +191,10 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
     RecyclerView recyclerView;
     MusicRecognition musicRecognition;
 
+    private final int[] icon = { R.drawable.ic_camera, R.drawable.ic_outline_photo_size_select_actual, R.drawable.ic_emtion, R.drawable.resize_sketchpad, R.drawable.ic_mircro};
+    private final String[] iconName = { "Camera", "Gallery", "Emotion", "Sketchpad", "Mirco"};
+
     private BroadcastReceiver imageSelectedReceiver;  // 从相册里选取图片发送
-
-    @Override
-    public int onStartCommand(Intent intent, int flags, int startId) {  // 目前没啥用，还是分享不了图片
-        if (Intent.ACTION_SEND.equals(intent.getAction()) && intent.getType() != null) {
-            if (intent.getType().startsWith("image/")) {
-                Uri imageUri = intent.getParcelableExtra(Intent.EXTRA_STREAM);
-                if (imageUri != null) {
-                    File imageFile = uriToFile(imageUri);
-                    handler.post(() -> {
-                        messageBeanList.add(new MessageBean("user", imageUri.toString(), true));
-                        int positionInserted = chatAdapter.getItemCount() - 1;
-                        chatAdapter.notifyItemInserted(positionInserted);
-                        recyclerView.scrollToPosition(positionInserted);
-
-                        String userInput = etInput.getText().toString();
-                        messageBeanList.add(new MessageBean("user", userInput));
-                        positionInserted = chatAdapter.getItemCount() - 1;
-                        chatAdapter.notifyItemInserted(positionInserted);
-                        recyclerView.scrollToPosition(positionInserted);
-                        etInput.setText("");
-
-                        messageBeanList.add(new MessageBean("user", "请给这张图片提出建议。"));
-//                        messageBeanList.add(new MessageBean("user", "Please provide suggestions for this image."));
-                        positionInserted = chatAdapter.getItemCount() - 1;
-                        chatAdapter.notifyItemInserted(positionInserted);
-                        recyclerView.scrollToPosition(positionInserted);
-
-                        tvTitle.setText("生成中，请勿输入文字...");
-                        AMapLocationClient.updatePrivacyShow(getApplicationContext(), true, true);
-                        AMapLocationClient.updatePrivacyAgree(getApplicationContext(), true);
-                        try {
-                            mLocationClient = new AMapLocationClient(getApplicationContext());
-                        } catch (Exception e) {
-                            e.printStackTrace();
-                        }
-                        AMapLocationClientOption mLocationOption = new AMapLocationClientOption();
-//                        mLocationOption.setGeoLanguage(AMapLocationClientOption.GeoLanguage.EN);  // 英文的地点名
-                        mLocationOption.setLocationMode(AMapLocationClientOption.AMapLocationMode.Hight_Accuracy);
-                        mLocationOption.setOnceLocation(true);
-                        mLocationOption.setOnceLocationLatest(true);
-                        mLocationOption.setNeedAddress(true);
-                        mLocationClient.setLocationOption(mLocationOption);
-                        mLocationClient.setLocationListener(amapLocation -> {
-                            if (amapLocation != null && amapLocation.getErrorCode() == 0) {
-                                double latitude = Math.round(amapLocation.getLatitude() * 100.0) / 100.0;
-                                double longitude = Math.round(amapLocation.getLongitude() * 100.0) / 100.0;
-                                String address = amapLocation.getAddress();
-                                if (imageFile != null) {
-                                    fetchWeatherData(latitude, longitude, new WeatherTextCallback() {
-                                        @Override
-                                        public void onWeatherTextReceived(String weatherText) {
-                                            getLatestTexts();
-                                            // 从SharedPreferences中获取文本
-                                            SharedPreferences prefs = getSharedPreferences(PREFERENCES_NAME, MODE_PRIVATE);
-                                            String screenText = prefs.getString(PREFERENCES_KEY, "");
-                                            // 所有数据都已经获取到，调用 requestTopic
-                                            imageEditTopic(userInput, weatherText, address, imageFile, screenText);
-                                        }
-                                        @Override
-                                        public void onError(Exception e) {
-                                            Log.e("WeatherError", "Failed to get weather data", e);
-                                        }
-                                    });
-                                } else {
-                                    Log.e("FileError", "Failed to create imageFile from imageUri");
-                                }
-                            } else {
-                                Log.e("AmapError", "location Error, ErrCode:" + amapLocation.getErrorCode() + ", errInfo:" + amapLocation.getErrorInfo());
-                            }
-                        });
-                        mLocationClient.startLocation();
-                    });
-                }
-            }
-        }
-        return super.onStartCommand(intent, flags, startId);
-    }
 
     @Override
     public IBinder onBind(Intent intent) {
@@ -271,39 +204,6 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
     @Override
     public void onCreate() {
         super.onCreate();
-        musicRecognition = new MusicRecognition(this);
-        musicRecognition.setListener(new IACRCloudListener() {
-            @Override
-            public void onResult(ACRCloudResult acrCloudResult) {
-                musicRecognition.reset();
-                String tres = "";
-                String result = acrCloudResult.getResult();
-                try {
-                    JSONObject j = new JSONObject(result);
-                    JSONObject j1 = j.getJSONObject("status");
-                    int j2 = j1.getInt("code");
-                    if(j2 == 0){
-                        JSONObject metadata = j.getJSONObject("metadata");
-                        if (metadata.has("music")) {
-                            JSONArray musics = metadata.getJSONArray("music");
-                            JSONObject tt = (JSONObject) musics.get(0);
-                            String title = tt.getString("title");
-                            JSONArray artistt = tt.getJSONArray("artists");
-                            JSONObject art = (JSONObject) artistt.get(0);
-                            String artist = art.getString("name");
-                            tres = tres + "Title: " + title + ", Artist: " + artist;
-                        }
-                    }
-                } catch (JSONException e) {
-                    tres = result;
-                    e.printStackTrace();
-                }
-                Log.e("tres", tres);  // 仅用它的原曲识别功能
-                Toast.makeText(getApplicationContext(), tres, Toast.LENGTH_LONG).show();
-            }
-            @Override
-            public void onVolumeChanged(double v) {}
-        });
         imageSelectedReceiver = new BroadcastReceiver() {
             @Override
             public void onReceive(Context context, Intent intent) {
@@ -328,7 +228,10 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
                         chatAdapter.notifyItemInserted(positionInserted);
                         recyclerView.scrollToPosition(positionInserted);
 
-                        tvTitle.setText("生成中，请勿输入文字...");
+                        tvTitle.setText("Loading...");
+                        tvPaint.setVisibility(View.VISIBLE);
+                        tvEdit.setVisibility(View.VISIBLE);
+                        tvTopic.setVisibility(View.GONE);
                         AMapLocationClient.updatePrivacyShow(getApplicationContext(), true, true);
                         AMapLocationClient.updatePrivacyAgree(getApplicationContext(), true);
                         try {
@@ -356,8 +259,7 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
                                             // 从SharedPreferences中获取文本
                                             SharedPreferences prefs = getSharedPreferences(PREFERENCES_NAME, MODE_PRIVATE);
                                             String screenText = prefs.getString(PREFERENCES_KEY, "");
-                                            // 所有数据都已经获取到，调用 requestTopic
-                                            imageEditTopic(userInput, weatherText, address, imageFile, screenText);
+                                            startMusicRecognition(recognizedMusic -> imageEditTopic(userInput, weatherText, address, imageFile, screenText, emotionResult, recognizedMusic));
                                         }
                                         @Override
                                         public void onError(Exception e) {
@@ -397,16 +299,19 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
         llCon1 = layout.findViewById(R.id.ll_con_1);
         llTool = layout.findViewById(R.id.ll_tool);
         return_chat = layout.findViewById(R.id.return_chat);
-        tv1 = layout.findViewById(R.id.tv_1);
         tv2 = layout.findViewById(R.id.tv_2);
-        tv3 = layout.findViewById(R.id.tv_3);
         tv4 = layout.findViewById(R.id.tv_4);
         tv5 = layout.findViewById(R.id.tv_5);
         tv6 = layout.findViewById(R.id.tv_6);
-        tv7 = layout.findViewById(R.id.tv_7);
         ll0 = layout.findViewById(R.id.ll_0);
         fl1 = layout.findViewById(R.id.fl_1);
+        btnAdd = layout.findViewById(R.id.btn_add);
+        tvPaint = layout.findViewById(R.id.btn_paint);
+        tvTopic = layout.findViewById(R.id.Inferring_themes);
         tvTitle = layout.findViewById(R.id.tv_title);
+        tvClear = layout.findViewById(R.id.btn_clear);
+        tvEdit = layout.findViewById(R.id.btn_edit);
+        editImageID = layout.findViewById(R.id.edit_ID);
         etID = layout.findViewById(R.id.tv_ID);
         int randomNum = new Random().nextInt(9999999);
         etID.setText(String.valueOf(randomNum));  // 每次初始化时设置不同的数（只有退出后台才是不同的数，新的对话不是）
@@ -416,6 +321,78 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
         TextView ifContent = layout.findViewById(R.id.if_content);
         TextView ifEmotion = layout.findViewById(R.id.if_emotion);
         TextView ifMusic = layout.findViewById(R.id.if_music);
+        LinearLayout funLin = layout.findViewById(R.id.fun_lin);
+        GridView gridView = layout.findViewById(R.id.gridView);
+
+        btnAdd.setOnClickListener(view -> {
+            if (showView){
+                funLin.setVisibility(View.GONE);
+                showView = false;
+            }else {
+                funLin.setVisibility(View.VISIBLE);
+                showView = true;
+            }
+        });
+
+        data_list = new ArrayList<>();
+        getData();
+        String [] from = {"image", "text"};
+        int [] to = {R.id.image, R.id.text};
+        SimpleAdapter sim_adapter = new SimpleAdapter(this, data_list, R.layout.item_grid, from, to);
+        gridView.setAdapter(sim_adapter);
+        gridView.setOnItemClickListener((parent, view, position, id) -> {
+            switch (position) {
+                case 0:
+                    tv4.performClick();
+                    break;
+                case 1:
+                    tv5.performClick();
+                    break;
+                case 2:
+                    tv2.performClick();
+                    break;
+                case 3:
+                    tv_drawing.performClick();
+                    break;
+                case 4:
+                    ivMirco.performClick();
+                    break;
+                default:
+                    break;
+            }
+        });
+
+        tvPaint.setOnClickListener(v -> handler.post(() -> {
+            messageBeanList.add(new MessageBean("user", "请根据之前的艺术讨论生成图片。"));
+//                messageBeanList.add(new MessageBean("user", "Please generate an image based on our previous art discussion."));
+            int positionInserted = chatAdapter.getItemCount() - 1;
+            chatAdapter.notifyItemInserted(positionInserted);
+            recyclerView.scrollToPosition(positionInserted);
+            tvTitle.setText("Loading...");
+            requestImage();
+        }));
+
+        tvTopic.setOnClickListener(v -> handler.post(() -> etInput.setText("请根据我现在的情境推荐绘画主题。")));
+
+        tvEdit.setOnClickListener(v -> handler.post(() -> {
+//                messageBeanList.add(new MessageBean("user", "Please edit the image " + editImageID.getText().toString() + " based on our previous art discussion."));
+            messageBeanList.add(new MessageBean("user", "请根据之前的艺术讨论修改 image " + editImageID.getText().toString() + "。"));
+            Log.e("editsize", String.valueOf(messageBeanList.size()));
+            int positionInserted = chatAdapter.getItemCount() - 1;
+            chatAdapter.notifyItemInserted(positionInserted);
+            recyclerView.scrollToPosition(positionInserted);
+            tvTitle.setText("Loading...");
+            imageEdit();  // 放在这里才好确定是否有指令文字，好pop，否则不稳定
+        }));
+
+        tvClear.setOnClickListener(v -> handler.post(() -> {
+            int itemCount = messageBeanList.size();
+            messageBeanList.clear();
+            chatAdapter.notifyItemRangeRemoved(0, itemCount);
+            tvPaint.setVisibility(View.GONE);
+            tvEdit.setVisibility(View.GONE);
+            tvTopic.setVisibility(View.VISIBLE);
+        }));
 
         // 标志位，初始设置为false，表示原始状态
         ifLocation.setOnClickListener(view -> {
@@ -538,6 +515,12 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
             isMusicGray = !isMusicGray;  // 切换标志位
         });
 
+        Handler handler = new Handler();
+        handler.postDelayed(() -> {
+            // 需要进行延时执行的操作
+            return_chat.performClick();
+        }, 30);
+
         return_chat.setOnClickListener(view -> {
             ll0.setVisibility(View.GONE);
             fl1.setVisibility(View.VISIBLE);
@@ -545,30 +528,12 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
             fl1.removeAllViews();
             fl1.addView(getViewChat(), new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT));
         });
-
-        tv1.setOnClickListener(view -> {
-            ll0.setVisibility(View.GONE);
-            fl1.setVisibility(View.VISIBLE);
-            tvTitle.setText("Location");
-            fl1.removeAllViews();
-            View view1 = getView1();
-            fl1.addView(view1, new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT));
-            btnLocationClick(view1);
-        });
         tv2.setOnClickListener(view -> {
             ll0.setVisibility(View.GONE);
             fl1.setVisibility(View.VISIBLE);
             tvTitle.setText("Emotion");
             fl1.removeAllViews();
             fl1.addView(getView4(), new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT));
-        });
-        tv3.setOnClickListener(view -> {
-            getLatestTexts();
-            ll0.setVisibility(View.GONE);
-            fl1.setVisibility(View.VISIBLE);
-            tvTitle.setText("Content");
-            fl1.removeAllViews();
-            fl1.addView(getView3(), new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT));
         });
         tv4.setOnClickListener(view -> {
             ll0.setVisibility(View.GONE);
@@ -588,13 +553,6 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
             startActivity(intent);
         });
         tv6.setOnClickListener(view -> musicRecognition.startRecognize());
-        tv7.setOnClickListener(view -> {
-            ll0.setVisibility(View.GONE);
-            fl1.setVisibility(View.VISIBLE);
-            tvTitle.setText("Action");
-            fl1.removeAllViews();
-            fl1.addView(getView2(), new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT));
-        });
 
         ivMirco.setOnClickListener(view -> {
             btnRecordClick();
@@ -625,9 +583,12 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
                 int positionInserted = chatAdapter.getItemCount() - 1;
                 chatAdapter.notifyItemInserted(positionInserted);
                 recyclerView.scrollToPosition(positionInserted);
-                tvTitle.setText("生成中，请勿输入文字...");
+                tvTitle.setText("Loading...");
 
                 if (messageBeanList.size() == 1) {
+                    tvPaint.setVisibility(View.VISIBLE);
+                    tvEdit.setVisibility(View.VISIBLE);
+                    tvTopic.setVisibility(View.GONE);
                     AMapLocationClient.updatePrivacyShow(getApplicationContext(), true, true);
                     AMapLocationClient.updatePrivacyAgree(getApplicationContext(), true);
                     try {
@@ -655,9 +616,7 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
                                     // 从SharedPreferences中获取文本
                                     SharedPreferences prefs = getSharedPreferences(PREFERENCES_NAME, MODE_PRIVATE);
                                     String screenText = prefs.getString(PREFERENCES_KEY, "");
-
-                                    // 所有数据都已经获取到，调用 requestTopic
-                                    requestTopic(userInput, weatherText, address, screenText);
+                                    startMusicRecognition(recognizedMusic -> requestTopic(userInput, weatherText, address, screenText, emotionResult, recognizedMusic));
                                 }
                                 @Override
                                 public void onError(Exception e) {
@@ -686,10 +645,7 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
         });
 
         startForeground(1, notification);
-
-        final WindowManager.LayoutParams params;
-
-        params = new WindowManager.LayoutParams(  // 设置聊天框大小
+        final WindowManager.LayoutParams params = new WindowManager.LayoutParams(  // 设置聊天框大小
                 dpToPx(344), WindowManager.LayoutParams.WRAP_CONTENT,
                 WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
                 WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL, PixelFormat.TRANSLUCENT);
@@ -700,6 +656,7 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
         windowManager.getDefaultDisplay().getMetrics(displayMetrics);
         int screenHeight = displayMetrics.heightPixels;
         params.y = screenHeight / 8;
+        Log.e("y", String.valueOf(params.y));
 
         onTouchListener = (view, motionEvent) -> {
             switch (motionEvent.getAction()) {
@@ -724,6 +681,20 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
             return false;
         };
 
+//        layout.getViewTreeObserver().addOnGlobalLayoutListener(() -> {
+//            Rect rect = new Rect();
+//            layout.getWindowVisibleDisplayFrame(rect);
+//            int keyboardHeight = screenHeight - rect.bottom;
+//            if (keyboardHeight > 0) {  // 键盘弹出
+//                params.y = (screenHeight - keyboardHeight) / 2;  // 根据你的需求调整这里的位置
+////                params.y = (screenHeight - keyboardHeight) / 2 - 40;  // 根据你的需求调整这里的位置
+//            } else {  // 键盘隐藏
+////                params.y = screenHeight / 8 - 40;
+//                params.y = screenHeight / 8;
+//            }
+//            windowManager.updateViewLayout(layout, params);
+//        });
+
         ivDotView.setOnTouchListener(new DoubleClickListener() {
             @Override
             public void onDoubleClick(View v) {
@@ -746,6 +717,10 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
                         ll0.setVisibility(View.VISIBLE);
                     }
                     animateExpandV(llTool);  // 展开工具栏
+                    handler.postDelayed(() -> {
+                        // 需要进行延时执行的操作
+                        return_chat.performClick();
+                    }, 30);
                 }
                 ivSend.setVisibility(View.VISIBLE);
             }
@@ -756,6 +731,16 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
         // 将水平线性布局添加到悬浮窗口中
         windowManager.addView(layout, params);
         TextAccessibilityService.setTextCallback(this);
+    }
+
+    public List<Map<String, Object>> getData() {
+        for(int i = 0;i < icon.length; i++) {
+            Map<String, Object> map = new HashMap<>();
+            map.put("image", icon[i]);
+            map.put("text", iconName[i]);
+            data_list.add(map);
+        }
+        return data_list;
     }
 
     private void requestImage() {
@@ -771,8 +756,12 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
             for (MessageBean messageBean : messageBeanList) {
                 JSONObject historyItem = new JSONObject();
                 historyItem.put("role", messageBean.getRole());
-                historyItem.put("content", messageBean.getMessage());
-                Log.e(TAG, messageBean.getMessage());
+                String content = messageBean.getMessage();
+                if (messageBean.hasThemes()) {
+                    content += "\n";
+                    content = content + String.join("\n", messageBean.getThemes());
+                }
+                historyItem.put("content", content);
                 history.put(historyItem);
             }
             data.put("history", history);
@@ -858,11 +847,7 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
         });
     }
 
-    private void requestTopic(String input, String weatherText, String mapText, String writeText) {  // 第一次请求：返回推荐的主题
-        String faceText = "happiness";
-//        String musicText = musicView.getText().toString();
-        String musicText = "";
-
+    private void requestTopic(String input, String weatherText, String mapText, String writeText, String faceText, String musicText) {  // 第一次请求：返回推荐的主题
         if(isLocationGray) mapText = "";
         if(isContentGray) writeText = "";
         if(isEmotionGray) faceText = "";
@@ -940,9 +925,13 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
                 String topic1 = (String) resMap.get("topic1");
                 String topic2 = (String) resMap.get("topic2");
                 String topic3 = (String) resMap.get("topic3");
+                List<String> themesList = new ArrayList<>();
+                themesList.add("1."+topic1);
+                themesList.add("2."+topic2);
+                themesList.add("3."+topic3);
 
                 handler.post(() -> {
-                    messageBeanList.add(new MessageBean("assistant", displayContent+"\n1."+topic1+"\n2."+topic2+"\n3."+topic3)); // bot回复在左侧
+                    messageBeanList.add(new MessageBean("assistant", displayContent, false, true, themesList)); // bot回复在左侧
                     int positionInserted = chatAdapter.getItemCount() - 1;
                     chatAdapter.notifyItemInserted(positionInserted);
                     recyclerView.scrollToPosition(positionInserted);
@@ -961,15 +950,18 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
         try {
             data.put("input", "");
             data.put("userID", userID);
-
             JSONArray history = new JSONArray();
             for (MessageBean messageBean : messageBeanList) {
                 JSONObject historyItem = new JSONObject();
                 historyItem.put("role", messageBean.getRole());
-                historyItem.put("content", messageBean.getMessage());
+                String content = messageBean.getMessage();
+                if (messageBean.hasThemes()) {
+                    content += "\n";
+                    content = content + String.join("\n", messageBean.getThemes());
+                }
+                historyItem.put("content", content);
                 history.put(historyItem);
             }
-            Log.e("history", String.valueOf(history));
             data.put("history", history);
             Log.e(TAG, String.valueOf(history));
         } catch (JSONException e) {
@@ -1032,12 +1024,45 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
         });
     }
 
-    private void imageEditTopic(String input, String weatherText, String mapText, File imageFile, String writeText) {  // 暂时不考虑user command只给评价和推荐
+    private void startMusicRecognition(MusicRecognitionCallback callback) {
+        musicRecognition = new MusicRecognition(this);
+        musicRecognition.setListener(new IACRCloudListener() {
+            @Override
+            public void onResult(ACRCloudResult acrCloudResult) {
+                musicRecognition.reset();
+                String tres = "";
+                String result = acrCloudResult.getResult();
+                try {
+                    JSONObject j = new JSONObject(result);
+                    JSONObject j1 = j.getJSONObject("status");
+                    int j2 = j1.getInt("code");
+                    if(j2 == 0){
+                        JSONObject metadata = j.getJSONObject("metadata");
+                        if (metadata.has("music")) {
+                            JSONArray musics = metadata.getJSONArray("music");
+                            JSONObject tt = (JSONObject) musics.get(0);
+                            String title = tt.getString("title");
+                            JSONArray artistt = tt.getJSONArray("artists");
+                            JSONObject art = (JSONObject) artistt.get(0);
+                            String artist = art.getString("name");
+                            tres = tres + "Title: " + title + ", Artist: " + artist;
+                        }
+                    }
+                } catch (JSONException e) {
+                    tres = result;
+                    e.printStackTrace();
+                }
+                callback.onMusicRecognized(tres);
+                Toast.makeText(getApplicationContext(), tres, Toast.LENGTH_LONG).show();
+            }
+            @Override
+            public void onVolumeChanged(double v) {}
+        });
+        musicRecognition.startRecognize();
+    }
+
+    private void imageEditTopic(String input, String weatherText, String mapText, File imageFile, String writeText, String faceText, String musicText) {  // 暂时不考虑user command只给评价和推荐
         // 上传图片给建议，和屏幕文本无关，但为了不重写prompt，直接令其为空
-//        String faceText = faceView.getText().toString();
-//        String musicText = musicView.getText().toString();
-        String faceText = "happiness";
-        String musicText = "";
         //合并所有视图中的文本
         if(isLocationGray) mapText = "";
         if(isContentGray) writeText = "";
@@ -1158,9 +1183,13 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
                 String topic1 = (String) resMap.get("topic1");
                 String topic2 = (String) resMap.get("topic2");
                 String topic3 = (String) resMap.get("topic3");
+                List<String> themesList = new ArrayList<>();
+                themesList.add("1."+topic1);
+                themesList.add("2."+topic2);
+                themesList.add("3."+topic3);
 
                 handler.post(() -> {
-                    messageBeanList.add(new MessageBean("assistant", displayContent+"\n1."+topic1+"\n2."+topic2+"\n3."+topic3)); // 对图片的评价和修改建议
+                    messageBeanList.add(new MessageBean("assistant", displayContent, false, true, themesList)); // 对图片的评价和修改建议
                     int positionInserted = chatAdapter.getItemCount() - 1;
                     chatAdapter.notifyItemInserted(positionInserted);
                     recyclerView.scrollToPosition(positionInserted);
@@ -1285,7 +1314,12 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
             for (MessageBean messageBean : messageBeanList) {
                 JSONObject historyItem = new JSONObject();
                 historyItem.put("role", messageBean.getRole());
-                historyItem.put("content", messageBean.getMessage());
+                String content = messageBean.getMessage();
+                if (messageBean.hasThemes()) {
+                    content += "\n";
+                    content = content + String.join("\n", messageBean.getThemes());
+                }
+                historyItem.put("content", content);
                 history.put(historyItem);
             }
             data.put("history", history);
@@ -1428,43 +1462,21 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
     private View getViewChat() {
         View view = LayoutInflater.from(this).inflate(R.layout.layout_chat, null);
         recyclerView = view.findViewById(R.id.rv_list);
-        TextView tvPaint = view.findViewById(R.id.btn_paint);
-        TextView tvBackTool = view.findViewById(R.id.btn_back_tool);
-        TextView tvClear = view.findViewById(R.id.btn_clear);
-        TextView tvEdit = view.findViewById(R.id.btn_edit);
-        editImageID = view.findViewById(R.id.edit_ID);
         recyclerView.setLayoutManager(new LinearLayoutManager(this));
         recyclerView.setAdapter(chatAdapter);
-        tvPaint.setOnClickListener(v -> handler.post(() -> {
-            messageBeanList.add(new MessageBean("user", "请根据之前的艺术讨论生成图片。"));
-//                messageBeanList.add(new MessageBean("user", "Please generate an image based on our previous art discussion."));
+        chatAdapter.setOnclickTheme(position -> handler.post(() -> {
+            if (position == 1) {
+                messageBeanList.add(new MessageBean("user", "1"));
+            } else if (position == 2) {
+                messageBeanList.add(new MessageBean("user", "2"));
+            } else if (position == 3) {
+                messageBeanList.add(new MessageBean("user", "3"));
+            }
             int positionInserted = chatAdapter.getItemCount() - 1;
             chatAdapter.notifyItemInserted(positionInserted);
             recyclerView.scrollToPosition(positionInserted);
-            tvTitle.setText("生成中，请勿输入文字...");
-            requestImage();
-        }));
-        tvEdit.setOnClickListener(v -> handler.post(() -> {
-//                messageBeanList.add(new MessageBean("user", "Please edit the image " + editImageID.getText().toString() + " based on our previous art discussion."));
-            messageBeanList.add(new MessageBean("user", "请根据之前的艺术讨论修改 image " + editImageID.getText().toString() + "。"));
-            Log.e("editsize", String.valueOf(messageBeanList.size()));
-            int positionInserted = chatAdapter.getItemCount() - 1;
-            chatAdapter.notifyItemInserted(positionInserted);
-            recyclerView.scrollToPosition(positionInserted);
-            tvTitle.setText("生成中，请勿输入文字...");
-            imageEdit();  // 放在这里才好确定是否有指令文字，好pop，否则不稳定
-        }));
-        tvBackTool.setOnClickListener(v -> {
-            llTool.setVisibility(View.GONE);
-            fl1.setVisibility(View.GONE);
-            ll0.setVisibility(View.VISIBLE);
-            llTool.setVisibility(View.VISIBLE);
-            tvTitle.setText("Tools");
-        });
-        tvClear.setOnClickListener(v -> handler.post(() -> {
-            int itemCount = messageBeanList.size();
-            messageBeanList.clear();
-            chatAdapter.notifyItemRangeRemoved(0, itemCount);
+            tvTitle.setText("Loading...");
+            requestArgue();
         }));
         return view;
     }
@@ -1527,7 +1539,7 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
                     messageBeanList.add(new MessageBean("user", userInput));
                     etInput.setText("");
                     // 获取位置
-                    tvTitle.setText("生成中，请勿输入文字...");
+                    tvTitle.setText("Loading...");
                     AMapLocationClient.updatePrivacyShow(getApplicationContext(), true, true);
                     AMapLocationClient.updatePrivacyAgree(getApplicationContext(), true);
                     try {
@@ -1553,7 +1565,7 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
                                     SharedPreferences prefs = getSharedPreferences(PREFERENCES_NAME, MODE_PRIVATE);
                                     String screenText = prefs.getString(PREFERENCES_KEY, "");
                                     saveSketch(savedFile);
-                                    requestTopic(userInput, weatherText, address, screenText);
+                                    startMusicRecognition(recognizedMusic -> requestTopic(userInput, weatherText, address, screenText, emotionResult, recognizedMusic));
                                 }
                                 @Override
                                 public void onError(Exception e) {
@@ -1573,48 +1585,15 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
         return layout;
     }
 
-
     private void btnRecordClick() {
         if (!startRecord) {
             startRecord = true;
             startRecordThread();
             startAsrThread();
-            showDialog();
             ivMirco.setEnabled(false);
             Log.e(TAG, "onCreate: 3");
         }
     }
-
-    AlertDialog dialog;
-
-    private void showDialog() {
-//        if (dialog != null && dialog.isShowing()) {
-//            return;
-//        }
-//        handler.post(new Runnable() {
-//            @Override
-//            public void run() {
-//                AlertDialog.Builder builder = new AlertDialog.Builder(getApplicationContext());
-//                builder.setTitle("提示");
-//                builder.setMessage("识别中，请稍等");
-//                dialog = builder.create();
-//                builder.show();
-//            }
-//        });
-
-    }
-
-    private void dismissDialog() {
-//        handler.post(new Runnable() {
-//            @Override
-//            public void run() {
-//                if(dialog != null){
-//                    dialog.dismiss();
-//                }
-//            }
-//        });
-    }
-
 
     // 发送POST请求的方法
     void post(String url, String json, Callback callback) {
@@ -1837,13 +1816,11 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
                                         handler.post(() -> {
                                             etInput.setText(decoder.toString());
                                             Log.e(TAG, resp.getMessage() + " " + resp.getData().getResult().getText());
-                                            showDialog();
                                             ivMirco.setEnabled(false);
                                             Log.e(TAG, "onCreate: 6");
                                         });
                                     } catch (Exception e) {
                                         handler.post(() -> {
-                                            dismissDialog();
                                             ivMirco.setEnabled(true); // 启用按钮，以供下一次录音使用
                                             Log.e(TAG, "onCreate: 7");
                                         });
@@ -1860,7 +1837,6 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
                                     }
                                     Log.e(TAG, "语音识别结果：" + decoder.toString());
                                     handler.post(() -> {
-                                        dismissDialog();
                                         ivMirco.setEnabled(true); // 启用按钮，以供下一次录音使用
                                         Log.e(TAG, "onCreate: 8");
                                     });
@@ -1898,80 +1874,15 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
                         }
                         // 在UI线程上启用按钮
                         handler.post(() -> {
-                            dismissDialog();
                             ivMirco.setEnabled(true); // 启用按钮，以供下一次录音使用
                         });
                     }
                 });
     }
 
-
-    private void btnLocationClick(View view) {
-        AMapLocationClient.updatePrivacyShow(getApplicationContext(), true, true);
-        AMapLocationClient.updatePrivacyAgree(getApplicationContext(), true);
-        try {
-            mLocationClient = new AMapLocationClient(getApplicationContext());
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-        AMapLocationClientOption mLocationOption = new AMapLocationClientOption();
-//        mLocationOption.setGeoLanguage(AMapLocationClientOption.GeoLanguage.EN);  // 设置为英文
-        mLocationOption.setLocationMode(AMapLocationClientOption.AMapLocationMode.Hight_Accuracy);
-        mLocationOption.setOnceLocation(true);
-        mLocationOption.setOnceLocationLatest(true);
-        mLocationOption.setNeedAddress(true);
-        mLocationClient.setLocationOption(mLocationOption);
-
-        if (mLocationClient != null) {
-            mLocationClient.setLocationListener(amapLocation -> {
-                if (amapLocation != null) {
-                    if (amapLocation.getErrorCode() == 0) {
-                        String address = amapLocation.getAddress();  //获取详细地址信息
-                        ((EditText) view.findViewById(R.id.et_location)).setText(address);
-                    }
-                } else {
-                    Log.e("AmapError", "location Error, ErrCode:" + amapLocation.getErrorCode() + ", errInfo:"
-                            + amapLocation.getErrorInfo());
-                }
-            });
-            mLocationClient.startLocation();
-        } else {
-            Log.e("Amap null", "onCreate: Amap null");
-        }
-    }
-
-    private View getView1() {
-        View view = LayoutInflater.from(this).inflate(R.layout.view_location, null);
-        return view;
-    }
-
-    TextView tvText;
-
-    private View getView2() {  // 简单的文本框
-        View view = LayoutInflater.from(this).inflate(R.layout.view_emotion2, null);
-        tvText = view.findViewById(R.id.tv_text);
-        return view;
-    }
-
-    private View getView3() {
-        View view = LayoutInflater.from(this).inflate(R.layout.view_content, null);
-        loadTextsFromPreferences(view);
-        return view;
-    }
-
-    private void loadTextsFromPreferences(View view) {
-        SharedPreferences prefs = getSharedPreferences(PREFERENCES_NAME, MODE_PRIVATE);
-        String savedTexts = prefs.getString(PREFERENCES_KEY, "");
-
-        EditText writeGet3View = view.findViewById(R.id.write_get3_view);
-        writeGet3View.setText(savedTexts);
-    }
-
-
     private CameraManager cameraManager;
     private CameraDevice cameraDevice;
     private TextureView textureView;
-    TextView tvTake;
     RelativeLayout rlCamara;
     private boolean usingFrontCamera = true;
 
@@ -2028,7 +1939,6 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
 
     private View getView4() { // emotion
         View view = LayoutInflater.from(this).inflate(R.layout.view_camera, null);
-        tvTake = view.findViewById(R.id.tv_emotion);
         rlCamara = view.findViewById(R.id.rl_camera);
         view.findViewById(R.id.iv_switch_camera).setOnClickListener(v -> switchCamera(true));
         view.findViewById(R.id.iv_take).setOnClickListener(v -> captureImage());
@@ -2040,7 +1950,6 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
 
     private View getView6() { // camera
         View view = LayoutInflater.from(this).inflate(R.layout.view_camera, null);
-        tvTake = view.findViewById(R.id.tv_emotion);
         rlCamara = view.findViewById(R.id.rl_camera);
         view.findViewById(R.id.iv_switch_camera).setOnClickListener(v -> switchCamera(false));
         view.findViewById(R.id.iv_take).setOnClickListener(v -> captureImage());
@@ -2137,9 +2046,16 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
             rlCamara.setVisibility(View.GONE);
 
             if (isEmotion) {
-                tvTake.setVisibility(View.VISIBLE);
-                tvTake.setText("Processing...");
-                new PhotoUploader(compress(bitmap, 80), result1 -> tvTake.setText(result1), getApplicationContext()).execute();
+                Toast.makeText(getApplicationContext(), "Processing...", Toast.LENGTH_SHORT).show();
+                new PhotoUploader(compress(bitmap, 80), result1 -> {
+                    emotionResult = result1;  // 保存结果
+                    Toast.makeText(getApplicationContext(), result1, Toast.LENGTH_SHORT).show();
+                }, getApplicationContext()).execute();
+                ll0.setVisibility(View.GONE);
+                fl1.setVisibility(View.VISIBLE);
+                tvTitle.setText("Chat");
+                fl1.removeAllViews();
+                fl1.addView(getViewChat(), new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT));
             } else {
                 File imageFile = saveImageToFile(bytes);
                 if (imageFile != null) {
@@ -2163,7 +2079,10 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
                     positionInserted = chatAdapter.getItemCount() - 1;
                     chatAdapter.notifyItemInserted(positionInserted);
                     recyclerView.scrollToPosition(positionInserted);
-
+                    tvTitle.setText("Loading...");
+                    tvPaint.setVisibility(View.VISIBLE);
+                    tvEdit.setVisibility(View.VISIBLE);
+                    tvTopic.setVisibility(View.GONE);
                     AMapLocationClient.updatePrivacyShow(getApplicationContext(), true, true);
                     AMapLocationClient.updatePrivacyAgree(getApplicationContext(), true);
                     try {
@@ -2191,7 +2110,7 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
                                     SharedPreferences prefs = getSharedPreferences(PREFERENCES_NAME, MODE_PRIVATE);
                                     String screenText = prefs.getString(PREFERENCES_KEY, "");
                                     // 所有数据都已经获取到，调用 requestTopic
-                                    imageEditTopic(userInput, weatherText, address, imageFile, screenText);
+                                    startMusicRecognition(recognizedMusic -> imageEditTopic(userInput, weatherText, address, imageFile, screenText, emotionResult, recognizedMusic));
                                 }
                                 @Override
                                 public void onError(Exception e) {
@@ -2523,12 +2442,12 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
 
         weatherClient.newCall(request).enqueue(new Callback() {
             @Override
-            public void onFailure(Call call, IOException e) {
+            public void onFailure(@NonNull Call call, @NonNull IOException e) {
                 callback.onError(e);
             }
 
             @Override
-            public void onResponse(Call call, Response response) throws IOException {
+            public void onResponse(@NonNull Call call, @NonNull Response response) throws IOException {
                 if (!response.isSuccessful()) {
                     throw new IOException("Unexpected code " + response);
                 } else {
