@@ -1,7 +1,7 @@
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
     <item
-        android:width="20dp"
-        android:height="20dp"
+        android:width="16dp"
+        android:height="16dp"
         android:drawable="@drawable/edit_image"
         android:gravity="center" />
 </layer-list>

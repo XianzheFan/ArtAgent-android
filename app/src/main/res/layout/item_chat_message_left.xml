@@ -5,14 +5,6 @@
     android:paddingTop="5dp"
     android:paddingRight="50dp">
 
-    <ImageView
-        android:id="@+id/iv_left_image"
-        android:layout_width="wrap_content"
-        android:layout_height="200dp"
-        android:layout_alignParentLeft="true"
-        android:adjustViewBounds="true"
-        android:scaleType="fitCenter"/>
-
     <TextView
         android:id="@+id/textMessage"
         android:layout_width="wrap_content"
@@ -21,4 +13,59 @@
         android:background="@drawable/chat_message_left_bg"
         android:padding="8dp"
         android:textColor="#ffffff" />
+
+    <LinearLayout
+        android:id="@+id/themesContainer"
+        android:layout_below="@id/textMessage"
+        android:layout_width="300dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="5dp"
+        android:layout_marginTop="5dp"
+        android:layout_marginEnd="5dp"
+        android:layout_marginBottom="5dp"
+        android:background="@drawable/shape_gray_bg"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/theme1"
+            android:layout_width="match_parent"
+            android:gravity="center_vertical"
+            android:layout_height="wrap_content"
+            android:layout_margin="8dp"
+            android:text="1"
+            android:textColor="@color/black" />
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:layout_marginStart="5dp"
+            android:layout_marginEnd="5dp"
+            android:background="@color/white"/>
+
+        <TextView
+            android:id="@+id/theme2"
+            android:layout_width="match_parent"
+            android:gravity="center_vertical"
+            android:layout_height="wrap_content"
+            android:layout_margin="8dp"
+            android:text="2"
+            android:textColor="@color/black" />
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:layout_marginStart="5dp"
+            android:layout_marginEnd="5dp"
+            android:background="@color/white"/>
+
+        <TextView
+            android:id="@+id/theme3"
+            android:layout_width="match_parent"
+            android:gravity="center_vertical"
+            android:layout_height="wrap_content"
+            android:layout_margin="8dp"
+            android:text="3"
+            android:textColor="@color/black" />
+
+    </LinearLayout>
 </RelativeLayout>
