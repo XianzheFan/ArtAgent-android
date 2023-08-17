@@ -73,7 +73,7 @@
                         android:layout_height="wrap_content"
                         android:layout_weight="0.25"
                         android:textSize="10sp"
-                        android:text="1"/>
+                        android:text="0"/>
                 </LinearLayout>
 
                 <LinearLayout
@@ -251,6 +251,7 @@
             android:gravity="center"
             android:orientation="vertical">
             <LinearLayout
+                android:id="@+id/paint_edit"
                 android:layout_width="match_parent"
                 android:layout_height="35dp"
                 android:paddingTop="6dp"
@@ -320,6 +321,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="40dp">
                 <View
+                    android:id="@+id/view_odi"
                     android:layout_width="match_parent"
                     android:layout_height="20dp"
                     android:background="@color/white"/>

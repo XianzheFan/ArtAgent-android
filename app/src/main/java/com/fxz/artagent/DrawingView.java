@@ -54,7 +54,7 @@ public class DrawingView extends View {
 
         drawPaint.setColor(Color.BLACK); //初始颜色
         drawPaint.setAntiAlias(true); //防止边缘锯齿
-        drawPaint.setStrokeWidth(40); //画笔宽度
+        drawPaint.setStrokeWidth(30); //画笔宽度
         drawPaint.setStyle(Paint.Style.STROKE); //空心
         drawPaint.setStrokeJoin(Paint.Join.ROUND);
         drawPaint.setStrokeCap(Paint.Cap.ROUND);

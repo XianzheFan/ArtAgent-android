@@ -128,10 +128,9 @@ import okhttp3.WebSocketListener;
 import com.acrcloud.rec.ACRCloudResult;
 import com.acrcloud.rec.IACRCloudListener;
 
-
 public class FloatingWindowService extends Service implements TextAccessibilityService.TextCallback {
     private WindowManager windowManager;
-    private View layout;  // 整个工具栏
+    private View layout, view_odi;  // 整个工具栏
     private String emotionResult = "neutral";
     public static final String CHANNEL_ID = "FloatingWindowServiceChannel";
     public static final String PREFERENCES_NAME = "SavedTexts";
@@ -145,6 +144,7 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
     private LinearLayout llCon1, llTool, ll0;
     FrameLayout fl1;
     RelativeLayout flFrame;
+    LinearLayout paint_edit, funLin;
     View.OnTouchListener onTouchListener;
     Handler handler = new Handler();
     private boolean isLocationGray = false;
@@ -229,9 +229,9 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
                         recyclerView.scrollToPosition(positionInserted);
 
                         tvTitle.setText("Loading...");
-                        tvPaint.setVisibility(View.VISIBLE);
-                        tvEdit.setVisibility(View.VISIBLE);
                         tvTopic.setVisibility(View.GONE);
+                        funLin.setVisibility(View.GONE);
+                        showView = false;
                         AMapLocationClient.updatePrivacyShow(getApplicationContext(), true, true);
                         AMapLocationClient.updatePrivacyAgree(getApplicationContext(), true);
                         try {
@@ -291,7 +291,9 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
 
         LayoutInflater inflater = (LayoutInflater) getSystemService(LAYOUT_INFLATER_SERVICE);
         layout = inflater.inflate(R.layout.talkway, null);
+        view_odi = layout.findViewById(R.id.view_odi);
         flFrame = layout.findViewById(R.id.fl_frame);
+        paint_edit = layout.findViewById(R.id.paint_edit);
         ivDotView = layout.findViewById(R.id.iv_dot_view);
         etInput = layout.findViewById(R.id.et_input);
         ivSend = layout.findViewById(R.id.btn_send);
@@ -321,14 +323,14 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
         TextView ifContent = layout.findViewById(R.id.if_content);
         TextView ifEmotion = layout.findViewById(R.id.if_emotion);
         TextView ifMusic = layout.findViewById(R.id.if_music);
-        LinearLayout funLin = layout.findViewById(R.id.fun_lin);
+        funLin = layout.findViewById(R.id.fun_lin);
         GridView gridView = layout.findViewById(R.id.gridView);
 
         btnAdd.setOnClickListener(view -> {
-            if (showView){
+            if (showView) {
                 funLin.setVisibility(View.GONE);
                 showView = false;
-            }else {
+            } else {
                 funLin.setVisibility(View.VISIBLE);
                 showView = true;
             }
@@ -392,6 +394,7 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
             tvPaint.setVisibility(View.GONE);
             tvEdit.setVisibility(View.GONE);
             tvTopic.setVisibility(View.VISIBLE);
+            changeColors(new ArrayList<>(Arrays.asList(0, 0, 0, 0, 0)), new ArrayList<>(Arrays.asList(0, 0, 0, 0, 0)), layout);
         }));
 
         // 标志位，初始设置为false，表示原始状态
@@ -565,6 +568,9 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
             tvTitle.setText("Sketchpad");
             fl1.removeAllViews();
             ivSend.setVisibility(View.GONE);  // 把发送键隐藏了，以免干扰
+            funLin.setVisibility(View.GONE);
+            tvTopic.setVisibility(View.GONE);
+            showView = false;
             fl1.addView(getViewDraw(), new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
         });
 
@@ -586,8 +592,6 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
                 tvTitle.setText("Loading...");
 
                 if (messageBeanList.size() == 1) {
-                    tvPaint.setVisibility(View.VISIBLE);
-                    tvEdit.setVisibility(View.VISIBLE);
                     tvTopic.setVisibility(View.GONE);
                     AMapLocationClient.updatePrivacyShow(getApplicationContext(), true, true);
                     AMapLocationClient.updatePrivacyAgree(getApplicationContext(), true);
@@ -681,20 +685,6 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
             return false;
         };
 
-//        layout.getViewTreeObserver().addOnGlobalLayoutListener(() -> {
-//            Rect rect = new Rect();
-//            layout.getWindowVisibleDisplayFrame(rect);
-//            int keyboardHeight = screenHeight - rect.bottom;
-//            if (keyboardHeight > 0) {  // 键盘弹出
-//                params.y = (screenHeight - keyboardHeight) / 2;  // 根据你的需求调整这里的位置
-////                params.y = (screenHeight - keyboardHeight) / 2 - 40;  // 根据你的需求调整这里的位置
-//            } else {  // 键盘隐藏
-////                params.y = screenHeight / 8 - 40;
-//                params.y = screenHeight / 8;
-//            }
-//            windowManager.updateViewLayout(layout, params);
-//        });
-
         ivDotView.setOnTouchListener(new DoubleClickListener() {
             @Override
             public void onDoubleClick(View v) {
@@ -711,11 +701,17 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
                 }
                 if (llTool.getVisibility() == View.VISIBLE) {
                     animateCollapseV(llTool);  // 关上工具栏
+                    view_odi.setVisibility(View.GONE);
+                    funLin.setVisibility(View.GONE);
+                    showView = false;
+                    paint_edit.setVisibility(View.GONE);
                 } else {
                     if (fl1.getVisibility() == View.VISIBLE) {
                         fl1.setVisibility(View.GONE);
                         ll0.setVisibility(View.VISIBLE);
                     }
+                    view_odi.setVisibility(View.VISIBLE);
+                    paint_edit.setVisibility(View.VISIBLE);
                     animateExpandV(llTool);  // 展开工具栏
                     handler.postDelayed(() -> {
                         // 需要进行延时执行的操作
@@ -780,6 +776,7 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
                     int positionInserted = chatAdapter.getItemCount() - 1;
                     chatAdapter.notifyItemInserted(positionInserted);
                     recyclerView.scrollToPosition(positionInserted);
+                    tvTitle.setText("Chat");
                 });
             }
 
@@ -884,6 +881,7 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
                     int positionInserted = chatAdapter.getItemCount() - 1;
                     chatAdapter.notifyItemInserted(positionInserted);
                     recyclerView.scrollToPosition(positionInserted);
+                    tvTitle.setText("Chat");
                 });
             }
 
@@ -895,6 +893,7 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
                         int positionInserted = chatAdapter.getItemCount() - 1;
                         chatAdapter.notifyItemInserted(positionInserted);
                         recyclerView.scrollToPosition(positionInserted);
+                        tvTitle.setText("Chat");
                     });
                     throw new IOException("Unexpected code " + response);
                 }
@@ -980,6 +979,7 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
                     int positionInserted = chatAdapter.getItemCount() - 1;
                     chatAdapter.notifyItemInserted(positionInserted);
                     recyclerView.scrollToPosition(positionInserted);
+                    tvTitle.setText("Chat");
                 });
             }
 
@@ -990,6 +990,7 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
                     int positionInserted = chatAdapter.getItemCount() - 1;
                     chatAdapter.notifyItemInserted(positionInserted);
                     recyclerView.scrollToPosition(positionInserted);
+                    tvTitle.setText("Chat");
                     throw new IOException("Unexpected code " + response);
                 }
 
@@ -1019,6 +1020,8 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
                     chatAdapter.notifyItemInserted(positionInserted);
                     recyclerView.scrollToPosition(positionInserted);
                     tvTitle.setText("Chat");
+                    tvPaint.setVisibility(View.VISIBLE);
+                    if(!editImageID.getText().toString().equals("0")) tvEdit.setVisibility(View.VISIBLE);
                 });
             }
         });
@@ -1404,6 +1407,7 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
     }
 
     private void changeColors(List<Integer> stanVec, List<Integer> ranVec, View view) {
+        int grayColor = Color.parseColor("#cdcdcd"); // 灰色
         int defaultTextColor = Color.parseColor("#61a07f");
         int defaultIconColor = Color.parseColor("#61a07f");  // 绿色
         int defaultBgColor = Color.parseColor("#e8f3dc");
@@ -1428,6 +1432,9 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
         };
 
         for (int i = 0; i < textViews.length && i < stanVec.size(); i++) {
+            if (textViews[i].getCurrentTextColor() == grayColor) {
+                continue;
+            }
             Drawable icon = textViews[i].getCompoundDrawables()[1];
 
             if (stanVec.get(i) == 1 && ranVec.get(i) == 1) {
@@ -2044,6 +2051,8 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
             buffer.get(bytes);
             Bitmap bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.length);
             rlCamara.setVisibility(View.GONE);
+            funLin.setVisibility(View.GONE);
+            showView = false;
 
             if (isEmotion) {
                 Toast.makeText(getApplicationContext(), "Processing...", Toast.LENGTH_SHORT).show();
@@ -2080,8 +2089,8 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
                     chatAdapter.notifyItemInserted(positionInserted);
                     recyclerView.scrollToPosition(positionInserted);
                     tvTitle.setText("Loading...");
-                    tvPaint.setVisibility(View.VISIBLE);
-                    tvEdit.setVisibility(View.VISIBLE);
+//                    tvPaint.setVisibility(View.VISIBLE);
+//                    tvEdit.setVisibility(View.VISIBLE);
                     tvTopic.setVisibility(View.GONE);
                     AMapLocationClient.updatePrivacyShow(getApplicationContext(), true, true);
                     AMapLocationClient.updatePrivacyAgree(getApplicationContext(), true);
@@ -2333,6 +2342,10 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
                 animateCollapseV(llTool);
             }
             // 隐藏其他布局
+            funLin.setVisibility(View.GONE);
+            showView = false;
+            view_odi.setVisibility(View.GONE);
+            paint_edit.setVisibility(View.GONE);
             animateCollapse(llCon1);
         } else {
             // 显示其他布局
