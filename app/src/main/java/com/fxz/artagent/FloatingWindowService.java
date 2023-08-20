@@ -318,7 +318,14 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
         tvEdit = layout.findViewById(R.id.btn_edit);
         editImageID = layout.findViewById(R.id.edit_ID);
         etID = layout.findViewById(R.id.tv_ID);
-        int randomNum = new Random().nextInt(9999999);
+        int randomNum = new Random().nextInt(1000000) + 1;
+//        int randomNum = new Random().nextInt(1000000) + 1000001;
+//        int randomNum = new Random().nextInt(1000000) + 2000001;
+//        int randomNum = new Random().nextInt(1000000) + 3000001;
+//        int randomNum = new Random().nextInt(1000000) + 4000001;
+//        int randomNum = new Random().nextInt(1000000) + 5000001;
+//        int randomNum = new Random().nextInt(1000000) + 6000001;
+//        int randomNum = new Random().nextInt(1000000) + 7000001;
         etID.setText(String.valueOf(randomNum));  // 每次初始化时设置不同的数（只有退出后台才是不同的数，新的对话不是）
         TextView tv_drawing = layout.findViewById(R.id.tv_drawing);
         TextView ifLocation = layout.findViewById(R.id.if_location);
