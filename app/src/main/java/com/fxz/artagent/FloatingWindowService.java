@@ -131,13 +131,14 @@ import com.acrcloud.rec.IACRCloudListener;
 public class FloatingWindowService extends Service implements TextAccessibilityService.TextCallback {
     private WindowManager windowManager;
     private View layout, view_odi;  // 整个工具栏
-    private String emotionResult = "neutral";
+    private String emotionResult = "";
+    private String envResult = "";
     public static final String CHANNEL_ID = "FloatingWindowServiceChannel";
     public static final String PREFERENCES_NAME = "SavedTexts";
     public static final String PREFERENCES_KEY = "texts";
     EditText etInput, etID, editImageID;
     ImageView ivSend, ivMirco, ivDotView, btnAdd;
-    TextView return_chat, tv2, tv4, tv5, tv6, tvTitle, tvPaint, tvClear, tvEdit, tvTopic;
+    TextView return_chat, tv2, tv4, tv5, tv7, tvTitle, tvPaint, tvClear, tvEdit, tvTopic, tvRefine, tvArtKnowledge;
     private int initialX, initialY;
     private float initialTouchX, initialTouchY;
     private boolean isOtherLayoutVisible = true;
@@ -191,8 +192,8 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
     RecyclerView recyclerView;
     MusicRecognition musicRecognition;
 
-    private final int[] icon = { R.drawable.ic_camera, R.drawable.ic_outline_photo_size_select_actual, R.drawable.ic_emtion, R.drawable.resize_sketchpad, R.drawable.ic_mircro};
-    private final String[] iconName = { "Camera", "Gallery", "Emotion", "Sketchpad", "Mirco"};
+    private final int[] icon = { R.drawable.ic_camera, R.drawable.ic_outline_photo_size_select_actual, R.drawable.ic_emtion, R.drawable.resize_sketchpad, R.drawable.ic_mircro, R.drawable.resize_environment};
+    private final String[] iconName = { "Camera", "Gallery", "Emotion", "Sketchpad", "Mirco", "Env"};
 
     private BroadcastReceiver imageSelectedReceiver;  // 从相册里选取图片发送
 
@@ -304,12 +305,14 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
         tv2 = layout.findViewById(R.id.tv_2);
         tv4 = layout.findViewById(R.id.tv_4);
         tv5 = layout.findViewById(R.id.tv_5);
-        tv6 = layout.findViewById(R.id.tv_6);
+        tv7 = layout.findViewById(R.id.tv_7);
         ll0 = layout.findViewById(R.id.ll_0);
         fl1 = layout.findViewById(R.id.fl_1);
         btnAdd = layout.findViewById(R.id.btn_add);
         tvPaint = layout.findViewById(R.id.btn_paint);
         tvTopic = layout.findViewById(R.id.Inferring_themes);
+        tvRefine = layout.findViewById(R.id.how_refine);
+        tvArtKnowledge = layout.findViewById(R.id.art_knowledge);
         tvTitle = layout.findViewById(R.id.tv_title);
         tvClear = layout.findViewById(R.id.btn_clear);
         tvEdit = layout.findViewById(R.id.btn_edit);
@@ -359,6 +362,9 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
                 case 4:
                     ivMirco.performClick();
                     break;
+                case 5:
+                    tv7.performClick();
+                    break;
                 default:
                     break;
             }
@@ -375,6 +381,8 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
         }));
 
         tvTopic.setOnClickListener(v -> handler.post(() -> etInput.setText("请根据我现在的情境推荐绘画主题。")));
+        tvRefine.setOnClickListener(v -> handler.post(() -> etInput.setText("还可以怎么改进？")));
+        tvArtKnowledge.setOnClickListener(v -> handler.post(() -> etInput.setText("说说其中的艺术知识！")));
 
         tvEdit.setOnClickListener(v -> handler.post(() -> {
 //                messageBeanList.add(new MessageBean("user", "Please edit the image " + editImageID.getText().toString() + " based on our previous art discussion."));
@@ -393,6 +401,8 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
             chatAdapter.notifyItemRangeRemoved(0, itemCount);
             tvPaint.setVisibility(View.GONE);
             tvEdit.setVisibility(View.GONE);
+            tvRefine.setVisibility(View.GONE);
+            tvArtKnowledge.setVisibility(View.GONE);
             tvTopic.setVisibility(View.VISIBLE);
             changeColors(new ArrayList<>(Arrays.asList(0, 0, 0, 0, 0)), new ArrayList<>(Arrays.asList(0, 0, 0, 0, 0)), layout);
         }));
@@ -538,6 +548,13 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
             fl1.removeAllViews();
             fl1.addView(getView4(), new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT));
         });
+        tv7.setOnClickListener(view -> {
+            ll0.setVisibility(View.GONE);
+            fl1.setVisibility(View.VISIBLE);
+            tvTitle.setText("Environment");
+            fl1.removeAllViews();
+            fl1.addView(getView7(), new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT));
+        });
         tv4.setOnClickListener(view -> {
             ll0.setVisibility(View.GONE);
             fl1.setVisibility(View.VISIBLE);
@@ -555,7 +572,6 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
             startActivity(intent);
         });
-        tv6.setOnClickListener(view -> musicRecognition.startRecognize());
 
         ivMirco.setOnClickListener(view -> {
             btnRecordClick();
@@ -744,7 +760,6 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
         JSONObject data = new JSONObject();
         try {
             data.put("userID", userID);
-            data.put("cnt", 0);
             data.put("width", 512);
             data.put("height", 512);
 
@@ -845,11 +860,16 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
     }
 
     private void requestTopic(String input, String weatherText, String mapText, String writeText, String faceText, String musicText) {  // 第一次请求：返回推荐的主题
+        mapText = mapText + " " + envResult;
         if(isLocationGray) mapText = "";
         if(isContentGray) writeText = "";
         if(isEmotionGray) faceText = "";
         if(isWeatherGray) weatherText = "";
         if(isMusicGray) musicText = "";
+        List<Integer> grayDataList = new ArrayList<>();
+        for (int i : new int[]{isLocationGray ? 1 : 0, isContentGray ? 1 : 0, isEmotionGray ? 1 : 0, isWeatherGray ? 1 : 0, isMusicGray ? 1 : 0}) {
+            grayDataList.add(i);
+        }
         //合并所有视图中的文本
         String combinedText = "Location:["+mapText+"],Phone-Content:["+writeText+"],Facial Expression:["+faceText+"],Weather:["+weatherText+"],Music:["+musicText+"],User command:["+input+"]";
         Log.e(TAG, "predict: " + combinedText);
@@ -860,7 +880,7 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
         try {
             data.put("input", combinedText);
             data.put("userID", userID);
-
+            data.put("grayDataList", String.valueOf(grayDataList));
             JSONArray history = new JSONArray();
             data.put("history", history);
 
@@ -1021,6 +1041,8 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
                     recyclerView.scrollToPosition(positionInserted);
                     tvTitle.setText("Chat");
                     tvPaint.setVisibility(View.VISIBLE);
+                    tvRefine.setVisibility(View.VISIBLE);
+                    tvArtKnowledge.setVisibility(View.VISIBLE);
                     if(!editImageID.getText().toString().equals("0")) tvEdit.setVisibility(View.VISIBLE);
                 });
             }
@@ -1067,17 +1089,24 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
     private void imageEditTopic(String input, String weatherText, String mapText, File imageFile, String writeText, String faceText, String musicText) {  // 暂时不考虑user command只给评价和推荐
         // 上传图片给建议，和屏幕文本无关，但为了不重写prompt，直接令其为空
         //合并所有视图中的文本
+        mapText = mapText + " " + envResult;
         if(isLocationGray) mapText = "";
         if(isContentGray) writeText = "";
         if(isEmotionGray) faceText = "";
         if(isWeatherGray) weatherText = "";
         if(isMusicGray) musicText = "";
+        List<Integer> grayDataList = new ArrayList<>();
+        for (int i : new int[]{isLocationGray ? 1 : 0, isContentGray ? 1 : 0, isEmotionGray ? 1 : 0, isWeatherGray ? 1 : 0, isMusicGray ? 1 : 0}) {
+            grayDataList.add(i);
+        }
+
         String combinedText = "Location:["+mapText+"],Phone-Content:["+writeText+"],Facial Expression:["+faceText+"],Weather:["+weatherText+"],Music:["+musicText+"],User command:["+input+"]";
         Log.e(TAG, "predict: " + combinedText);
         String userID = etID.getText().toString();
         // 构建发送的数据
         JSONObject data = new JSONObject();
         try {
+            data.put("grayDataList", String.valueOf(grayDataList));  // 如果是灰的，就是1
             data.put("input", combinedText);
             JSONArray history = new JSONArray();
             data.put("history", history);
@@ -1305,6 +1334,87 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
         });
     }
 
+
+    private void getUserEnv(File imageFile) {
+        String userID = etID.getText().toString();
+        // 构建发送的数据
+        JSONObject data = new JSONObject();
+        try {
+            data.put("userID", userID);
+        } catch (JSONException e) {
+            e.printStackTrace();
+        }
+        // 获取图像的尺寸，但不加载整个图像到内存中
+        BitmapFactory.Options options = new BitmapFactory.Options();
+        options.inJustDecodeBounds = true;
+        BitmapFactory.decodeFile(imageFile.getAbsolutePath(), options);
+        int imageHeight = options.outHeight;
+        int imageWidth = options.outWidth;
+        float scaleFactor = (float) 512 / imageHeight;
+        int newWidth = Math.round(imageWidth * scaleFactor);
+        int newHeight = Math.round(imageHeight * scaleFactor);
+
+        // 加载图像并重新调整大小
+        Bitmap bitmap = BitmapFactory.decodeFile(imageFile.getAbsolutePath());
+        Bitmap resizedBitmap = Bitmap.createScaledBitmap(bitmap, newWidth, newHeight, false);
+
+        // 保存缩放后的图像替换原图像
+        try {
+            FileOutputStream fos = new FileOutputStream(imageFile);
+            resizedBitmap.compress(Bitmap.CompressFormat.JPEG, 100, fos);
+            fos.close();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        RequestBody requestFile = RequestBody.create(imageFile, MediaType.parse("image/jpg"));
+        MultipartBody.Part filePart = MultipartBody.Part.createFormData("image", imageFile.getName(), requestFile);
+
+        MultipartBody.Builder multipartBodyBuilder = new MultipartBody.Builder()
+                .setType(MultipartBody.FORM)
+                .addPart(filePart)
+                .addFormDataPart("data", data.toString());
+        MultipartBody multipartBody = multipartBodyBuilder.build();
+        Request request = new Request.Builder()
+                .url("http://166.111.139.116:22231/get_user_env")
+                .post(multipartBody)
+                .build();
+
+        OkHttpClient okHttpClient = new OkHttpClient.Builder()
+                .connectTimeout(600, TimeUnit.SECONDS) // 连接超时时间
+                .writeTimeout(600, TimeUnit.SECONDS) // 写操作超时时间
+                .readTimeout(600, TimeUnit.SECONDS) // 读操作超时时间
+                .callTimeout(1200, TimeUnit.SECONDS) // 增加全局调用超时
+                .build();
+        okHttpClient.newCall(request).enqueue(new Callback() {
+            // 不要在主线程中执行网络请求，因为这可能导致应用的用户界面无响应。OkHttp库已经在新的线程中处理了这个问题
+            @Override
+            public void onFailure(@NonNull Call call, @NonNull IOException e) {
+                Log.e(TAG, "onFailure: get_user_env");
+                e.printStackTrace();
+                handler.post(() -> Toast.makeText(FloatingWindowService.this, "get_user_env onResponse Error", Toast.LENGTH_SHORT).show());
+            }
+
+            @Override
+            public void onResponse(@NonNull Call call, @NonNull Response response) throws IOException {
+                if (!response.isSuccessful()) {
+                    handler.post(() -> Toast.makeText(FloatingWindowService.this, "get_user_env onResponse Error", Toast.LENGTH_SHORT).show());
+                    throw new IOException("Unexpected code " + response);
+                }
+
+                // 将服务器的响应显示给用户
+                final String resStr = Objects.requireNonNull(response.body()).string();
+                // 使用 Gson 解析 JSON 数据
+                Gson gson = new Gson();
+                Type type = new TypeToken<Map<String, Object>>() {
+                }.getType();
+                Map<String, Object> resMap = gson.fromJson(resStr, type);
+                envResult = (String) resMap.get("res");
+                handler.post(() -> Toast.makeText(FloatingWindowService.this, envResult, Toast.LENGTH_SHORT).show());
+            }
+        });
+    }
+
     private void imageEdit() {  // 与情境无关
         String userID = etID.getText().toString();
         String editID = editImageID.getText().toString();  // 修改图片的编号
@@ -1504,7 +1614,7 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
         brushSizeSeekBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override
             public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
-                drawingView.setBrushSize(progress + 20);  // 20-80，默认40
+                drawingView.setBrushSize(progress + 10);
             }
             @Override
             public void onStartTrackingTouch(SeekBar seekBar) {}
@@ -1893,12 +2003,11 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
     RelativeLayout rlCamara;
     private boolean usingFrontCamera = true;
 
-    private void switchCamera(boolean isEmotion) {
+    private void switchCamera(int isEmotion) {
         if (cameraDevice != null) {
             cameraDevice.close();
         }
         usingFrontCamera = !usingFrontCamera;
-        // Open the new camera
         String newCameraId = null;
         try {
             for (String cameraId : cameraManager.getCameraIdList()) {
@@ -1944,29 +2053,40 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
         }
     }
 
-    private View getView4() { // emotion
+    private View getView7() { // environment
         View view = LayoutInflater.from(this).inflate(R.layout.view_camera, null);
         rlCamara = view.findViewById(R.id.rl_camera);
-        view.findViewById(R.id.iv_switch_camera).setOnClickListener(v -> switchCamera(true));
+        view.findViewById(R.id.iv_switch_camera).setOnClickListener(v -> switchCamera(0));
         view.findViewById(R.id.iv_take).setOnClickListener(v -> captureImage());
         textureView = view.findViewById(R.id.textureView);
 
-        setupCamera(true);
+        setupCamera(0);
+        return view;
+    }
+
+    private View getView4() { // emotion
+        View view = LayoutInflater.from(this).inflate(R.layout.view_camera, null);
+        rlCamara = view.findViewById(R.id.rl_camera);
+        view.findViewById(R.id.iv_switch_camera).setOnClickListener(v -> switchCamera(1));
+        view.findViewById(R.id.iv_take).setOnClickListener(v -> captureImage());
+        textureView = view.findViewById(R.id.textureView);
+
+        setupCamera(1);
         return view;
     }
 
     private View getView6() { // camera
         View view = LayoutInflater.from(this).inflate(R.layout.view_camera, null);
         rlCamara = view.findViewById(R.id.rl_camera);
-        view.findViewById(R.id.iv_switch_camera).setOnClickListener(v -> switchCamera(false));
+        view.findViewById(R.id.iv_switch_camera).setOnClickListener(v -> switchCamera(2));
         view.findViewById(R.id.iv_take).setOnClickListener(v -> captureImage());
         textureView = view.findViewById(R.id.textureView);
 
-        setupCamera(false);
+        setupCamera(2);
         return view;
     }
 
-    private void setupCamera(boolean isEmotion) {
+    private void setupCamera(int isEmotion) {
         try {
             // Get the front camera ID
             if (frontCameraId == null) {
@@ -2043,7 +2163,7 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
     }
 
 
-    private void saveImage(Image image, boolean isEmotion) {
+    private void saveImage(Image image, int isEmotion) {
         try {
             ByteBuffer buffer = image.getPlanes()[0].getBuffer();
             buffer.rewind();
@@ -2054,7 +2174,17 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
             funLin.setVisibility(View.GONE);
             showView = false;
 
-            if (isEmotion) {
+            if (isEmotion == 0) {  // 拍摄周围环境
+                Toast.makeText(getApplicationContext(), "Processing...", Toast.LENGTH_SHORT).show();
+                ll0.setVisibility(View.GONE);
+                fl1.setVisibility(View.VISIBLE);
+                tvTitle.setText("Chat");
+                fl1.removeAllViews();
+                fl1.addView(getViewChat(), new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT));
+                File imageFile = saveImageToFile(bytes);
+                if (imageFile != null) getUserEnv(imageFile);
+            }
+            else if (isEmotion == 1) {
                 Toast.makeText(getApplicationContext(), "Processing...", Toast.LENGTH_SHORT).show();
                 new PhotoUploader(compress(bitmap, 80), result1 -> {
                     emotionResult = result1;  // 保存结果
@@ -2065,7 +2195,7 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
                 tvTitle.setText("Chat");
                 fl1.removeAllViews();
                 fl1.addView(getViewChat(), new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT));
-            } else {
+            } else if (isEmotion == 2) {
                 File imageFile = saveImageToFile(bytes);
                 if (imageFile != null) {
                     ll0.setVisibility(View.GONE);
@@ -2089,8 +2219,6 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
                     chatAdapter.notifyItemInserted(positionInserted);
                     recyclerView.scrollToPosition(positionInserted);
                     tvTitle.setText("Loading...");
-//                    tvPaint.setVisibility(View.VISIBLE);
-//                    tvEdit.setVisibility(View.VISIBLE);
                     tvTopic.setVisibility(View.GONE);
                     AMapLocationClient.updatePrivacyShow(getApplicationContext(), true, true);
                     AMapLocationClient.updatePrivacyAgree(getApplicationContext(), true);
@@ -2251,7 +2379,7 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
         return (sensorOrientation + deviceOrientation + 360) % 360;
     }
 
-    private void startCameraPreview(boolean isEmotion) {
+    private void startCameraPreview(int isEmotion) {
         if (cameraDevice == null || !textureView.isAvailable()) {
             return;
         }
