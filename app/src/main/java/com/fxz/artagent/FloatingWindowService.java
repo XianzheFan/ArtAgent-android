@@ -318,7 +318,14 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
         tvEdit = layout.findViewById(R.id.btn_edit);
         editImageID = layout.findViewById(R.id.edit_ID);
         etID = layout.findViewById(R.id.tv_ID);
-        int randomNum = new Random().nextInt(9999999);
+        int randomNum = new Random().nextInt(1000000) + 1;
+//        int randomNum = new Random().nextInt(1000000) + 1000001;
+//        int randomNum = new Random().nextInt(1000000) + 2000001;
+//        int randomNum = new Random().nextInt(1000000) + 3000001;
+//        int randomNum = new Random().nextInt(1000000) + 4000001;
+//        int randomNum = new Random().nextInt(1000000) + 5000001;
+//        int randomNum = new Random().nextInt(1000000) + 6000001;
+//        int randomNum = new Random().nextInt(1000000) + 7000001;
         etID.setText(String.valueOf(randomNum));  // 每次初始化时设置不同的数（只有退出后台才是不同的数，新的对话不是）
         TextView tv_drawing = layout.findViewById(R.id.tv_drawing);
         TextView ifLocation = layout.findViewById(R.id.if_location);
@@ -781,7 +788,7 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
             e.printStackTrace();
         }
 
-        post("http://166.111.139.116:22231/gpt4_sd_draw", data.toString(), new Callback() {
+        post("http://166.111.139.116:22233/gpt4_sd_draw", data.toString(), new Callback() {
             @Override
             public void onFailure(@NonNull Call call, @NonNull IOException e) {
                 Log.e(TAG, "onFailure: gpt4_sd_draw", e);
@@ -891,13 +898,13 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
 
         // 发送请求到服务器
         // 不要在主线程中执行网络请求，因为这可能导致应用的用户界面无响应。OkHttp库已经在新的线程中处理了这个问题
-        post("http://166.111.139.116:22231/gpt4_mode_2", data.toString(), new Callback() {
+        post("http://166.111.139.116:22233/gpt4_mode_1", data.toString(), new Callback() {
             @Override
             public void onFailure(@NonNull Call call, @NonNull IOException e) {
-                Log.e(TAG, "onFailure: gpt4_mode_2");
+                Log.e(TAG, "onFailure: gpt4_mode_1");
                 e.printStackTrace();
                 handler.post(() -> {
-                    messageBeanList.add(new MessageBean("assistant", "gpt4_mode_2 onFailure Error"));
+                    messageBeanList.add(new MessageBean("assistant", "gpt4_mode_1 onFailure Error"));
                     int positionInserted = chatAdapter.getItemCount() - 1;
                     chatAdapter.notifyItemInserted(positionInserted);
                     recyclerView.scrollToPosition(positionInserted);
@@ -909,7 +916,7 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
             public void onResponse(@NonNull Call call, @NonNull Response response) throws IOException {
                 if (!response.isSuccessful()) {
                     handler.post(() -> {
-                        messageBeanList.add(new MessageBean("assistant", "gpt4_mode_2 onResponse Error"));
+                        messageBeanList.add(new MessageBean("assistant", "gpt4_mode_1 onResponse Error"));
                         int positionInserted = chatAdapter.getItemCount() - 1;
                         chatAdapter.notifyItemInserted(positionInserted);
                         recyclerView.scrollToPosition(positionInserted);
@@ -989,7 +996,7 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
 
         // 发送请求到服务器
         // 不要在主线程中执行网络请求，因为这可能导致应用的用户界面无响应。OkHttp库已经在新的线程中处理了这个问题
-        post("http://166.111.139.116:22231/gpt4_predict", data.toString(), new Callback() {
+        post("http://166.111.139.116:22233/gpt4_predict", data.toString(), new Callback() {
             @Override
             public void onFailure(@NonNull Call call, @NonNull IOException e) {
                 Log.e(TAG, "onFailure: gpt4_predict");
@@ -1006,7 +1013,7 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
             @Override
             public void onResponse(@NonNull Call call, @NonNull Response response) throws IOException {
                 if (!response.isSuccessful()) {
-                    messageBeanList.add(new MessageBean("assistant", "gpt4_mode_2 Error"));
+                    messageBeanList.add(new MessageBean("assistant", "gpt4_mode_1 Error"));
                     int positionInserted = chatAdapter.getItemCount() - 1;
                     chatAdapter.notifyItemInserted(positionInserted);
                     recyclerView.scrollToPosition(positionInserted);
@@ -1149,7 +1156,7 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
                 .addFormDataPart("data", data.toString());
         MultipartBody multipartBody = multipartBodyBuilder.build();
         Request request = new Request.Builder()
-                .url("http://166.111.139.116:22231/image_edit_topic")
+                .url("http://166.111.139.116:22233/image_edit_topic")
                 .post(multipartBody)
                 .build();
 
@@ -1275,7 +1282,7 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
                 .addFormDataPart("data", data.toString());
         MultipartBody multipartBody = multipartBodyBuilder.build();
         Request request = new Request.Builder()
-                .url("http://166.111.139.116:22231/save_sketch")
+                .url("http://166.111.139.116:22233/save_sketch")
                 .post(multipartBody)
                 .build();
 
@@ -1376,7 +1383,7 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
                 .addFormDataPart("data", data.toString());
         MultipartBody multipartBody = multipartBodyBuilder.build();
         Request request = new Request.Builder()
-                .url("http://166.111.139.116:22231/get_user_env")
+                .url("http://166.111.139.116:22233/get_user_env")
                 .post(multipartBody)
                 .build();
 
@@ -1442,7 +1449,7 @@ public class FloatingWindowService extends Service implements TextAccessibilityS
             e.printStackTrace();
         }
 
-        post("http://166.111.139.116:22231/gpt4_sd_edit", data.toString(), new Callback() {
+        post("http://166.111.139.116:22233/gpt4_sd_edit", data.toString(), new Callback() {
             @Override
             public void onFailure(@NonNull Call call, @NonNull IOException e) {
                 Log.e(TAG, "onFailure: gpt4_sd_edit", e);
