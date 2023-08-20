@@ -210,14 +210,13 @@
                                 android:text="Sketchpad" />
 
                             <TextView
-                                android:id="@+id/tv_6"
+                                android:id="@+id/tv_7"
                                 android:layout_width="0dp"
                                 android:layout_height="wrap_content"
                                 android:layout_weight="1"
-                                android:drawableTop="@drawable/uil_music"
+                                android:drawableTop="@drawable/resize_environment"
                                 android:gravity="center"
-                                android:text="Music"
-                                android:visibility="gone"/>
+                                android:text="Environment"/>
 
                         </LinearLayout>
                     </LinearLayout>
@@ -292,6 +291,36 @@
                     android:background="@drawable/shape_white_bg"/>
 
                 <TextView
+                    android:id="@+id/how_refine"
+                    android:layout_width="0dp"
+                    android:layout_height="match_parent"
+                    android:layout_weight="1"
+                    android:gravity="center"
+                    android:text="改进建议"
+                    android:textSize="11sp"
+                    android:visibility="gone"
+                    android:drawablePadding="1dp"
+                    android:layout_marginStart="40dp"
+                    android:layout_marginEnd="20dp"
+                    android:drawableLeft="@drawable/resize_edit_image"
+                    android:background="@drawable/shape_white_bg"/>
+
+                <TextView
+                    android:id="@+id/art_knowledge"
+                    android:layout_width="0dp"
+                    android:layout_height="match_parent"
+                    android:layout_weight="1"
+                    android:gravity="center"
+                    android:text="艺术知识讲解"
+                    android:textSize="11sp"
+                    android:visibility="gone"
+                    android:drawablePadding="1dp"
+                    android:layout_marginStart="40dp"
+                    android:layout_marginEnd="20dp"
+                    android:drawableLeft="@drawable/resize_edit_image"
+                    android:background="@drawable/shape_white_bg"/>
+
+                <TextView
                     android:id="@+id/Inferring_themes"
                     android:layout_width="220dp"
                     android:layout_height="match_parent"
@@ -304,7 +333,7 @@
             <LinearLayout
                 android:id="@+id/fun_lin"
                 android:layout_width="match_parent"
-                android:layout_height="80dp"
+                android:layout_height="70dp"
                 android:visibility="gone"
                 android:background="@color/gray_blue1">
 
@@ -313,8 +342,8 @@
                     android:layout_width="match_parent"
                     android:layout_height="match_parent"
                     android:gravity="center"
-                    android:numColumns="5"
-                    android:columnWidth="70dp"
+                    android:numColumns="6"
+                    android:columnWidth="40dp"
                     android:stretchMode="columnWidth"/>
             </LinearLayout>
             <RelativeLayout
